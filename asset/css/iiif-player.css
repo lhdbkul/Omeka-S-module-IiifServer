@@ -82,24 +82,66 @@
 
 .iiif-player-button .iiif-player-sidebar {
     background: #222;
-    padding: 6px;
     display: flex;
-    gap: 6px;
+    align-items: stretch;
+    position: relative;
 }
 
 .iiif-player-button .iiif-player-sidebar-left .iiif-player-sidebar,
 .iiif-player-button .iiif-player-sidebar-right .iiif-player-sidebar {
     flex: 0 0 160px;
-    overflow-y: auto;
     flex-direction: column;
 }
 
 .iiif-player-button .iiif-player-sidebar-top .iiif-player-sidebar,
 .iiif-player-button .iiif-player-sidebar-bottom .iiif-player-sidebar {
     flex: 0 0 120px;
+    flex-direction: row;
+}
+
+.iiif-player-button .iiif-player-sidebar-track {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    padding: 6px;
+    display: flex;
+    gap: 6px;
+}
+
+.iiif-player-button .iiif-player-sidebar-left .iiif-player-sidebar-track,
+.iiif-player-button .iiif-player-sidebar-right .iiif-player-sidebar-track {
+    overflow-y: auto;
+    flex-direction: column;
+}
+
+.iiif-player-button .iiif-player-sidebar-top .iiif-player-sidebar-track,
+.iiif-player-button .iiif-player-sidebar-bottom .iiif-player-sidebar-track {
     overflow-x: auto;
     flex-direction: row;
     justify-content: center;
+}
+
+.iiif-player-button .iiif-player-nav {
+    flex: 0 0 28px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 0;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iiif-player-button .iiif-player-nav:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.iiif-player-button .iiif-player-nav:disabled {
+    opacity: 0.3;
+    cursor: default;
 }
 
 .iiif-player-button .iiif-player-sidebar-top .iiif-player-thumb,

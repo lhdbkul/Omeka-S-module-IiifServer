@@ -46,6 +46,7 @@
 
             if (tiles && tiles.length > 1) {
                 var pos = stage.getAttribute('data-sidebar-position') || 'bottom';
+                var horizontal = (pos === 'top' || pos === 'bottom');
                 stage.classList.add('iiif-player-sidebar-' + pos);
                 stage.removeChild(inner);
                 var osdArea = document.createElement('div');
@@ -53,6 +54,21 @@
                 osdArea.appendChild(inner);
                 var sidebar = document.createElement('div');
                 sidebar.className = 'iiif-player-sidebar';
+                var navPrev = document.createElement('button');
+                navPrev.type = 'button';
+                navPrev.className = 'iiif-player-nav iiif-player-nav-prev';
+                navPrev.setAttribute('aria-label', horizontal ? 'Previous' : 'Up');
+                navPrev.innerHTML = horizontal ? '&#9664;' : '&#9650;';
+                var navNext = document.createElement('button');
+                navNext.type = 'button';
+                navNext.className = 'iiif-player-nav iiif-player-nav-next';
+                navNext.setAttribute('aria-label', horizontal ? 'Next' : 'Down');
+                navNext.innerHTML = horizontal ? '&#9654;' : '&#9660;';
+                var track = document.createElement('div');
+                track.className = 'iiif-player-sidebar-track';
+                sidebar.appendChild(navPrev);
+                sidebar.appendChild(track);
+                sidebar.appendChild(navNext);
                 if (pos === 'top' || pos === 'left') {
                     stage.appendChild(sidebar);
                     stage.appendChild(osdArea);
@@ -61,36 +77,64 @@
                     stage.appendChild(sidebar);
                 }
 
+                var thumbs = [];
+                var currentIndex = 0;
+                function scrollToCenter(thumb) {
+                    if (!thumb) return;
+                    if (horizontal) {
+                        var target = thumb.offsetLeft - (track.clientWidth / 2) + (thumb.offsetWidth / 2);
+                        track.scrollTo({ left: target, behavior: 'smooth' });
+                    } else {
+                        var target2 = thumb.offsetTop - (track.clientHeight / 2) + (thumb.offsetHeight / 2);
+                        track.scrollTo({ top: target2, behavior: 'smooth' });
+                    }
+                }
+                function goTo(i) {
+                    if (i < 0 || i >= tiles.length || i === currentIndex) {
+                        updateNav();
+                        return;
+                    }
+                    currentIndex = i;
+                    if (window._iiifPlayerOsd && window._iiifPlayerOsd[inner.id]) {
+                        window._iiifPlayerOsd[inner.id].open(toTileSource(tiles[i]));
+                    }
+                    thumbs.forEach(function (el, j) {
+                        el.classList.toggle('active', j === i);
+                    });
+                    scrollToCenter(thumbs[i]);
+                    updateNav();
+                }
                 tiles.forEach(function (t, i) {
                     var a = document.createElement('button');
                     a.type = 'button';
                     a.className = 'iiif-player-thumb';
                     a.title = t.title || '';
                     a.innerHTML = '<img src="' + t.thumb + '" alt="">';
-                    a.addEventListener('click', function () {
-                        if (window._iiifPlayerOsd && window._iiifPlayerOsd[inner.id]) {
-                            window._iiifPlayerOsd[inner.id].open(toTileSource(t));
-                        }
-                        sidebar.querySelectorAll('.iiif-player-thumb.active').forEach(function (el) {
-                            el.classList.remove('active');
-                        });
-                        a.classList.add('active');
-                    });
+                    a.addEventListener('click', function () { goTo(i); });
                     if (i === 0) a.classList.add('active');
-                    sidebar.appendChild(a);
+                    track.appendChild(a);
+                    thumbs.push(a);
                 });
 
                 // Translate vertical wheel to horizontal scroll on horizontal
                 // sidebars; without this the wheel event bubbles up to the
                 // OpenSeadragon canvas and zooms the viewer instead.
-                if (pos === 'top' || pos === 'bottom') {
-                    sidebar.addEventListener('wheel', function (e) {
+                if (horizontal) {
+                    track.addEventListener('wheel', function (e) {
                         var delta = e.deltaX || e.deltaY;
                         if (!delta) return;
                         e.preventDefault();
-                        sidebar.scrollLeft += delta;
+                        track.scrollLeft += delta;
                     }, { passive: false });
                 }
+
+                function updateNav() {
+                    navPrev.disabled = currentIndex <= 0;
+                    navNext.disabled = currentIndex >= tiles.length - 1;
+                }
+                navPrev.addEventListener('click', function () { goTo(currentIndex - 1); });
+                navNext.addEventListener('click', function () { goTo(currentIndex + 1); });
+                updateNav();
             }
 
             var optsJson = stage.getAttribute('data-osd-options');
