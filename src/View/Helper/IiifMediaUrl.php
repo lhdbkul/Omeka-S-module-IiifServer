@@ -36,6 +36,11 @@ class IiifMediaUrl extends AbstractHelper
     protected $defaultVersion;
 
     /**
+     * @var bool
+     */
+    protected $versionAppend;
+
+    /**
      * @var array
      */
     protected $supportedVersions;
@@ -76,6 +81,7 @@ class IiifMediaUrl extends AbstractHelper
         ?string $baseUrlPath,
         ?string $imageApiUrl,
         ?string $defaultVersion,
+        bool $versionAppend,
         array $supportedVersions,
         ?string $forceUrlFrom,
         ?string $forceUrlTo,
@@ -89,6 +95,7 @@ class IiifMediaUrl extends AbstractHelper
         $this->baseUrlPath = $baseUrlPath;
         $this->imageApiUrl = $imageApiUrl;
         $this->defaultVersion = $defaultVersion;
+        $this->versionAppend = $versionAppend;
         $this->supportedVersions = $supportedVersions;
         $this->forceUrlFrom = $forceUrlFrom;
         $this->forceUrlTo = $forceUrlTo;
@@ -161,8 +168,12 @@ class IiifMediaUrl extends AbstractHelper
             ? strtr($identifier, ['/' => '%2F'])
             : $identifier;
 
+        // Only include the version segment in the URL when the caller passes
+        // it explicitly or the setting iiifserver_media_api_version_append is
+        // enabled. Otherwise the route default ('') is kept and the segment
+        // is omitted, producing /iiif/{id}/info.json instead of /iiif/3/...
         $params += [
-            'version' => $version ?: $this->defaultVersion,
+            'version' => $version ?: ($this->versionAppend ? $this->defaultVersion : ''),
             'prefix' => $this->prefix,
             'id' => $idForUrl,
         ];

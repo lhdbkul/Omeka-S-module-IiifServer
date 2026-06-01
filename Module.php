@@ -777,7 +777,7 @@ class Module extends AbstractModule
         $settings = $services->get('Omeka\Settings');
 
         // Check and normalize image api versions.
-        $defaultVersion = $params['iiifserver_media_api_default_version'] ?: '0';
+        $defaultVersion = (string) ($params['iiifserver_media_api_default_version'] ?? '0');
         $has = ['1' => null, '2' => null, '3' => null];
         foreach ($params['iiifserver_media_api_supported_versions'] ?? [] as $supportedVersion) {
             $service = strtok($supportedVersion, '/');

@@ -61,6 +61,11 @@ class IiifUrl extends AbstractHelper
     protected $defaultVersion;
 
     /**
+     * @var bool
+     */
+    protected $versionAppend;
+
+    /**
      * @var string
      */
     protected $prefix;
@@ -97,6 +102,7 @@ class IiifUrl extends AbstractHelper
         IiifMediaUrl $iifImageUrl,
         $baseUrlPath,
         $defaultVersion,
+        bool $versionAppend,
         $forceUrlFrom,
         $forceUrlTo,
         $prefix,
@@ -107,6 +113,7 @@ class IiifUrl extends AbstractHelper
         $this->iiifMediaUrl = $iifImageUrl;
         $this->baseUrlPath = $baseUrlPath;
         $this->defaultVersion = $defaultVersion;
+        $this->versionAppend = $versionAppend;
         $this->forceUrlFrom = $forceUrlFrom;
         $this->forceUrlTo = $forceUrlTo;
         $this->prefix = $prefix;
@@ -127,7 +134,10 @@ class IiifUrl extends AbstractHelper
      */
     public function __invoke($resource, $route = '', $version = null, array $params = []): string
     {
-        $apiVersion = $version ?: $this->defaultVersion;
+        // Only include the version segment in the URL when the caller passes
+        // it explicitly or the setting iiifserver_url_version_add is enabled.
+        // Otherwise the route default ('') is kept and the segment is omitted.
+        $apiVersion = $version ?: ($this->versionAppend ? $this->defaultVersion : '');
 
         $urlOptions = ['force_canonical' => true];
         if (isset($params['query'])) {

@@ -19,6 +19,7 @@ class IiifMediaUrlFactory implements FactoryInterface
             $helpers->get('ServerUrl')($helpers->get('BasePath')()),
             $settings->get('iiifserver_media_api_url', ''),
             $settings->get('iiifserver_media_api_default_version', '2'),
+            (bool) $settings->get('iiifserver_media_api_version_append', false),
             $settings->get('iiifserver_media_api_supported_versions', ['2/2', '3/2']),
             $settings->get('iiifserver_url_force_from', ''),
             $settings->get('iiifserver_url_force_to', ''),
