@@ -130,10 +130,12 @@ class MediaDimension extends AbstractPlugin
         // (Image API or Presentation canvas).
         $mainMediaType = substr((string) $media->mediaType(), 0, 5);
         if (!in_array($mainMediaType, ['image', 'video', 'audio'])) {
-            $ingester = method_exists($media, 'ingester')
-                ? (string) $media->ingester()
+            // Use the renderer (not the ingester) so digital objects, whose
+            // ingester is always "digital_object", are recognized too.
+            $renderer = method_exists($media, 'renderer')
+                ? (string) $media->renderer()
                 : '';
-            if (in_array($ingester, ['iiif', 'iiif_presentation'], true)) {
+            if (in_array($renderer, ['iiif', 'iiif_presentation'], true)) {
                 $mainMediaType = 'image';
             } else {
                 return $this->emptyDimensions;

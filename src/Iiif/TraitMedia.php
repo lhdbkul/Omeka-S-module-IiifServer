@@ -243,9 +243,10 @@ trait TraitMedia
             return $this->dimensionsMedia;
         }
 
-        // Automatic check via the ingester.
-        $ingester = $media->ingester();
-        switch ($ingester) {
+        // Automatic check via the renderer (not the ingester), so digital
+        // objects (ingester always "digital_object") are recognized too.
+        $renderer = $media->renderer();
+        switch ($renderer) {
             case 'iiif':
                 // Currently, Omeka manages only images, but doesn't check.
                 $mediaData = $media->mediaData();

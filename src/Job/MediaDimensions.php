@@ -379,11 +379,13 @@ class MediaDimensions extends AbstractJob
         if ($main !== false && $main !== '') {
             return $main;
         }
-        $ingester = method_exists($media, 'ingester') ? (string) $media->ingester() : '';
-        if ($ingester === 'iiif') {
+        // Use the renderer (not the ingester) so digital objects, whose
+        // ingester is always "digital_object", are recognized too.
+        $renderer = method_exists($media, 'renderer') ? (string) $media->renderer() : '';
+        if ($renderer === 'iiif') {
             return 'image';
         }
-        if ($ingester === 'iiif_presentation') {
+        if ($renderer === 'iiif_presentation') {
             $data = $media->mediaData() ?: [];
             // IIIF Presentation 3: canvas/painting body has a `format` (mime)
             // and a `type` ("Image", "Sound", "Video"). v2 uses `format` and

@@ -215,8 +215,10 @@ class ContentResource extends AbstractResourceType
     protected function prepareMediaId(): self
     {
         // FIXME Manage all media Omeka types (Iiif, youtube, etc.)..
-        $ingester = $this->resource->ingester();
-        if ($ingester === 'iiif') {
+        // Use the renderer (not the ingester) so digital objects, whose
+        // ingester is always "digital_object", are recognized too.
+        $renderer = $this->resource->renderer();
+        if ($renderer === 'iiif') {
             $mediaData = $this->resource->mediaData();
             if (isset($mediaData['id'])) {
                 $this->id = $mediaData['id'];

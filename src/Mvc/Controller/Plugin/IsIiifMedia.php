@@ -30,15 +30,20 @@ class IsIiifMedia extends AbstractPlugin
      */
     public function __invoke(AbstractResourceEntityRepresentation $media, ?string $type = null): bool
     {
+        // Match by ingester (configured names, e.g. contributed by other
+        // modules) or by renderer, so digital objects, whose ingester is always
+        // "digital_object" but whose renderer is "iiif"/"iiif_presentation",
+        // are recognized too.
         $ingester = $media->ingester();
-        if ($type === null) {
-            foreach ($this->mediaIngesters as $list) {
-                if (in_array($ingester, $list, true)) {
-                    return true;
-                }
+        $renderer = method_exists($media, 'renderer') ? $media->renderer() : '';
+        $lists = $type === null
+            ? $this->mediaIngesters
+            : [$this->mediaIngesters[$type] ?? []];
+        foreach ($lists as $list) {
+            if (in_array($ingester, $list, true) || in_array($renderer, $list, true)) {
+                return true;
             }
-            return false;
         }
-        return in_array($ingester, $this->mediaIngesters[$type] ?? [], true);
+        return false;
     }
 }
