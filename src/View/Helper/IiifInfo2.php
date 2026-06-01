@@ -155,10 +155,13 @@ class IiifInfo2 extends AbstractHelper
             $info['sizes'] = $sizes;
             if ($tiles) {
                 $info['tiles'] = $tiles;
-            } else {
+            } elseif ($width && $height) {
                 // When no pre-tiled data, provide default tiles info so viewers
                 // like Diva/OSD can compute tile requests. The server is
-                // level2, so arbitrary region requests are supported.
+                // level2, so arbitrary region requests are supported. Skip the
+                // block when dimensions are unknown (mediaDimension could not
+                // resolve them): exposing a tile descriptor without
+                // width/height confuses the viewer.
                 $info['tiles'] = [[
                     'width' => 512,
                     'scaleFactors' => $this->defaultScaleFactors($width, $height, 512),

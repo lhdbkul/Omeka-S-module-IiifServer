@@ -152,17 +152,18 @@ class MediaDimensions extends AbstractJob
                 if ($doItems) {
                     /** @var \Omeka\Api\Representation\MediaRepresentation $media */
                     foreach ($item->media() as $media) {
-                        $mainMediaType = strtok((string) $media->mediaType(), '/');
-                        if (in_array($mainMediaType, ['image', 'audio', 'video'])
+                        if (!$this->isImageAudioVideoMedia($media)
                             // For ingester bulk_upload, wait that the process
                             // is finished, else the thumbnails won't be
                             // available and the size of derivative will be the
                             // fallback.
-                            && $media->ingester() !== 'bulk_upload'
+                            || $media->ingester() === 'bulk_upload'
                         ) {
-                            ++$this->totalMedias;
-                            $this->prepareSize($media);
+                            unset($media);
+                            continue;
                         }
+                        ++$this->totalMedias;
+                        $this->prepareSize($media);
                         unset($media);
                     }
                 }
@@ -185,6 +186,17 @@ class MediaDimensions extends AbstractJob
 
             $this->entityManager->clear();
             $offset += self::SQL_LIMIT;
+            $this->logger->info(
+                'Progress: {count}/{total} items processed, {medias} medias seen, {sized} sized, {skipped} skipped, {failed} failed.', // @translate
+                [
+                    'count' => $this->totalProcessed,
+                    'total' => $this->totalToProcess,
+                    'medias' => $this->totalMedias,
+                    'sized' => $this->totalSucceed,
+                    'skipped' => $this->totalSkipped,
+                    'failed' => $this->totalFailed,
+                ]
+            );
         }
 
         // Second pass: digital objects referenced by the matched items.
@@ -203,11 +215,12 @@ class MediaDimensions extends AbstractJob
                     if ($this->shouldStop()) {
                         break 2;
                     }
-                    $mainMediaType = strtok((string) $do->mediaType(), '/');
-                    if (in_array($mainMediaType, ['image', 'audio', 'video'])) {
-                        ++$this->totalMedias;
-                        $this->prepareSize($do);
+                    if (!$this->isImageAudioVideoMedia($do)) {
+                        unset($do);
+                        continue;
                     }
+                    ++$this->totalMedias;
+                    $this->prepareSize($do);
                     unset($do);
                 }
                 $this->entityManager->clear();
@@ -252,44 +265,45 @@ class MediaDimensions extends AbstractJob
      */
     protected function prepareSize(AbstractResourceEntityRepresentation $media): void
     {
-        $mainMediaType = strtok((string) $media->mediaType(), '/');
-        if (!in_array($mainMediaType, ['image', 'audio', 'video'])) {
+        if (!$this->isImageAudioVideoMedia($media)) {
             return;
         }
+        $mainMediaType = $this->mainMediaType($media);
 
         // Keep possible data added by another module.
         $mediaData = $media->mediaData() ?: [];
 
-        switch ($mainMediaType) {
-            case 'audio':
-            case 'video':
-                if ($this->filter === 'sized') {
-                    if (empty($mediaData['dimensions']['original']['duration'])) {
-                        ++$this->totalSkipped;
-                        return;
-                    }
-                } elseif ($this->filter === 'unsized') {
-                    if (!empty($mediaData['dimensions']['original']['duration'])) {
-                        ++$this->totalSkipped;
-                        return;
-                    }
-                }
-                break;
-            case 'image':
-            default:
-                // Some images have no original.
-                if ($this->filter === 'sized') {
-                    if (empty($mediaData['dimensions']['large']['width'])) {
-                        ++$this->totalSkipped;
-                        return;
-                    }
-                } elseif ($this->filter === 'unsized') {
-                    if (!empty($mediaData['dimensions']['large']['width'])) {
-                        ++$this->totalSkipped;
-                        return;
-                    }
-                }
-                break;
+        // Expected types: image carries original + all thumbnails; audio/video
+        // only the original (no derivative geometry).
+        $expectedTypes = $mainMediaType === 'image'
+            ? $this->imageTypes
+            : ['original'];
+
+        // Pivot value to test per type: images use width (dimension), audio /
+        // video use duration (time). A type counts as "already attempted" when
+        // its pivot key exists in the stored dimensions — even with a null
+        // value, which means a previous run tried and failed to read the file.
+        // Using empty() would treat null as missing and reprocess the same
+        // broken file on every run.
+        $pivot = $mainMediaType === 'image' ? 'width' : 'duration';
+        $missing = [];
+        foreach ($expectedTypes as $type) {
+            $entry = $mediaData['dimensions'][$type] ?? null;
+            if (!is_array($entry) || !array_key_exists($pivot, $entry)) {
+                $missing[] = $type;
+            }
+        }
+
+        if ($this->filter === 'unsized' && !$missing) {
+            // Everything already sized: nothing to do for this filter.
+            ++$this->totalSkipped;
+            return;
+        }
+        if ($this->filter === 'sized' && count($missing) === count($expectedTypes)) {
+            // Fully unsized: skipped by intent (the 'sized' filter targets
+            // refresh of already-sized medias).
+            ++$this->totalSkipped;
+            return;
         }
 
         /** @var \Omeka\Entity\Media $mediaEntity */
@@ -326,6 +340,76 @@ class MediaDimensions extends AbstractJob
         $this->entityManager->flush();
         unset($mediaEntity);
 
-        ++$this->totalSucceed;
+        // Counted as "succeeded" only when at least one expected type was
+        // actually measured; otherwise the run is a true failure (loggued
+        // above) and must not double-count.
+        if (!$failedTypes
+            || count($failedTypes) < (
+                $mainMediaType === 'image' ? count($this->imageTypes) : 1
+            )
+        ) {
+            ++$this->totalSucceed;
+        }
+    }
+
+    /**
+     * Recognise a resource that carries width/height/duration semantics,
+     * including IIIF-ingested medias whose stored media_type is null. Those
+     * remote IIIF medias are always images by construction (Image API or
+     * Presentation canvas).
+     */
+    protected function isImageAudioVideoMedia(AbstractResourceEntityRepresentation $media): bool
+    {
+        $mainMediaType = $this->mainMediaType($media);
+        return in_array($mainMediaType, ['image', 'audio', 'video'], true);
+    }
+
+    /**
+     * Resolve the main media type, with a fallback for IIIF-ingested medias
+     * whose stored media_type is null.
+     *
+     * The Image API ingester ('iiif') always describes an image. The
+     * Presentation ingester ('iiif_presentation') can describe any media
+     * (canvas content), so the type is read from the payload format/type field;
+     * if absent, the media is reported as unknown.
+     */
+    protected function mainMediaType(AbstractResourceEntityRepresentation $media): string
+    {
+        $main = strtok((string) $media->mediaType(), '/');
+        if ($main !== false && $main !== '') {
+            return $main;
+        }
+        $ingester = method_exists($media, 'ingester') ? (string) $media->ingester() : '';
+        if ($ingester === 'iiif') {
+            return 'image';
+        }
+        if ($ingester === 'iiif_presentation') {
+            $data = $media->mediaData() ?: [];
+            // IIIF Presentation 3: canvas/painting body has a `format` (mime)
+            // and a `type` ("Image", "Sound", "Video"). v2 uses `format` and
+            // `@type` ("oa:Annotation" with motivation "painting" wraps the
+            // content).
+            $format = $data['format'] ?? null;
+            if (is_string($format) && $format !== '') {
+                $main = strtok($format, '/');
+                if (in_array($main, ['image', 'audio', 'video'], true)) {
+                    return $main;
+                }
+            }
+            $type = $data['type'] ?? $data['@type'] ?? null;
+            if (is_string($type)) {
+                $type = strtolower($type);
+                if ($type === 'image' || $type === 'dctypes:image' || $type === 'sc:image') {
+                    return 'image';
+                }
+                if ($type === 'sound' || $type === 'audio') {
+                    return 'audio';
+                }
+                if ($type === 'video' || $type === 'dctypes:movingimage') {
+                    return 'video';
+                }
+            }
+        }
+        return '';
     }
 }

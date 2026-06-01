@@ -125,21 +125,31 @@ class MediaDimension extends AbstractPlugin
      */
     protected function dimensionMedia(AbstractResourceEntityRepresentation $media, string $type, bool $force): array
     {
-        // Check if this is a media (image, video, audio).
+        // Check if this is a media (image, video, audio). IIIF-ingested medias
+        // may have a null media_type but are always images by construction
+        // (Image API or Presentation canvas).
         $mainMediaType = substr((string) $media->mediaType(), 0, 5);
-        if (!in_array($mainMediaType, ['image', 'video', 'audio'])
-            // A security check.
-            || strpos($type, '/..') !== false
-            || strpos($type, '../') !== false
-        ) {
+        if (!in_array($mainMediaType, ['image', 'video', 'audio'])) {
+            $ingester = method_exists($media, 'ingester')
+                ? (string) $media->ingester()
+                : '';
+            if (in_array($ingester, ['iiif', 'iiif_presentation'], true)) {
+                $mainMediaType = 'image';
+            } else {
+                return $this->emptyDimensions;
+            }
+        }
+        // A security check.
+        if (strpos($type, '/..') !== false || strpos($type, '../') !== false) {
             return $this->emptyDimensions;
         }
+
+        $mediaData = $media->mediaData() ?: [];
 
         // Check if size is already stored. Stored dimensions may contain an
         // all-null tuple (legacy rows). Use the cache only when at least one
         // value is non-null; otherwise fall through and recompute from file.
         if (!$force) {
-            $mediaData = $media->mediaData();
             $stored = $mediaData['dimensions'][$type] ?? null;
             if (is_array($stored) && array_filter(
                 $stored,
@@ -149,35 +159,59 @@ class MediaDimension extends AbstractPlugin
             }
         }
 
-        // Try local file first, fall back to URL for external storage.
-        // For images, skip file_exists(): @getimagesize() handles missing
-        // files. For audio/video, keep file_exists(): GetId3 does its own
-        // check, so skipping ours would just add init overhead for nothing.
+        // Remote IIIF medias (Omeka IIIF / IiifPresentation ingester) ship with
+        // their info.json or canvas payload in mediaData. Width and height are
+        // authoritative and avoid an HTTP probe of the original. Promote them
+        // into the canonical dimensions[original] slot on the fly. Supported
+        // shapes:
+        //   - Image API v1/v2/v3 info.json   → width, height at top level
+        //   - Presentation API v2/v3 canvas  → width, height at top level
+        //   - Image API v2/v3 sizes[]        → largest entry
+        // The info.json payload is treated as authoritative for the original
+        // image, even when $force is true: a remote IIIF media has no other
+        // reliable source short of downloading the file (the URL probe can also
+        // fail when the iiif server requires special headers or a signed
+        // request). Forcing a refresh of dimensions[$type] still re-runs the
+        // local-file/URL probes for derivatives.
+        if ($type === 'original' && $mainMediaType === 'image') {
+            $infoDim = $this->extractIiifDimensions($mediaData);
+            if ($infoDim) {
+                $result = $infoDim + ['duration' => null];
+                $table = $media->resourceName() === 'digital_objects'
+                    ? 'digital_object'
+                    : 'media';
+                $this->cacheMediaDimensions($media->id(), $type, $result, $table);
+                return $result;
+            }
+        }
+
+        // Try local file first, fall back to URL only for external storage.
+        // Locally-ingested medias (hasOriginal=true) whose file is missing from
+        // disk must not trigger an HTTP probe: the URL points back to this
+        // Omeka instance and the probe degrades into a slow 404 round trip,
+        // which freezes the bulk job for seconds per broken media.
+        $isLocal = method_exists($media, 'hasOriginal') ? (bool) $media->hasOriginal() : true;
         if ($type === 'original') {
             $storagePath = $this->getStoragePath($type, $media->filename());
             $filepath = $this->basePath . DIRECTORY_SEPARATOR . $storagePath;
-            if ($mainMediaType === 'image') {
+            $localOk = file_exists($filepath) && is_readable($filepath);
+            if ($localOk) {
                 $result = $this->getDimensionsLocal($filepath, $mainMediaType);
-                if (!$result['width']) {
-                    $result = $this->getDimensionsUrl($media->originalUrl(), $mainMediaType);
-                }
+            } elseif ($isLocal) {
+                $result = $this->emptyDimensions;
             } else {
-                $result = file_exists($filepath)
-                    ? $this->getDimensionsLocal($filepath, $mainMediaType)
-                    : $this->getDimensionsUrl($media->originalUrl(), $mainMediaType);
+                $result = $this->getDimensionsUrl($media->originalUrl(), $mainMediaType);
             }
         } else {
             $storagePath = $this->getStoragePath($type, $media->storageId(), 'jpg');
             $filepath = $this->basePath . DIRECTORY_SEPARATOR . $storagePath;
-            if ($mainMediaType === 'image') {
+            $localOk = file_exists($filepath) && is_readable($filepath);
+            if ($localOk) {
                 $result = $this->getDimensionsLocal($filepath, $mainMediaType);
-                if (!$result['width']) {
-                    $result = $this->getDimensionsUrl($media->thumbnailUrl($type), $mainMediaType);
-                }
+            } elseif ($isLocal) {
+                $result = $this->emptyDimensions;
             } else {
-                $result = file_exists($filepath)
-                    ? $this->getDimensionsLocal($filepath, $mainMediaType)
-                    : $this->getDimensionsUrl($media->thumbnailUrl($type), $mainMediaType);
+                $result = $this->getDimensionsUrl($media->thumbnailUrl($type), $mainMediaType);
             }
         }
 
@@ -188,6 +222,45 @@ class MediaDimension extends AbstractPlugin
         }
 
         return $result;
+    }
+
+    /**
+     * Read width/height from a mediaData payload deposited by a IIIF ingester.
+     *
+     * Probes, in order:
+     *   - top-level width/height (Image API v1/v2/v3 info.json, Presentation
+     *     API v2/v3 canvas);
+     *   - largest entry of `sizes[]` (Image API v2/v3 alternative).
+     *
+     * @return array{width:int,height:int}|null
+     */
+    protected function extractIiifDimensions(array $mediaData): ?array
+    {
+        $w = $mediaData['width'] ?? null;
+        $h = $mediaData['height'] ?? null;
+        if ($w && $h) {
+            return ['width' => (int) $w, 'height' => (int) $h];
+        }
+        $sizes = $mediaData['sizes'] ?? null;
+        if (is_array($sizes) && $sizes) {
+            $best = null;
+            foreach ($sizes as $size) {
+                if (!is_array($size)) {
+                    continue;
+                }
+                $sw = (int) ($size['width'] ?? 0);
+                $sh = (int) ($size['height'] ?? 0);
+                if ($sw > 0 && $sh > 0
+                    && (!$best || $sw > $best['width'])
+                ) {
+                    $best = ['width' => $sw, 'height' => $sh];
+                }
+            }
+            if ($best) {
+                return $best;
+            }
+        }
+        return null;
     }
 
     /**
