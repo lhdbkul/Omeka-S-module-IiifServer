@@ -203,7 +203,15 @@
     }
 
     function setup(root) {
-        var stage = root.querySelector('.iiif-player-stage');
+        var btn = root.querySelector('.iiif-player-toggle');
+        // The overlay (with the stage and close button) may have been portalled
+        // out of the button by the theme's advanced player; resolve it via the
+        // toggle's aria-controls so the toggle still binds wherever it lives.
+        var ovId = btn ? btn.getAttribute('aria-controls') : null;
+        var overlay = root.querySelector('.iiif-player-overlay')
+            || (ovId ? document.getElementById(ovId) : null);
+        var stage = root.querySelector('.iiif-player-stage')
+            || (overlay ? overlay.querySelector('.iiif-player-stage') : null);
         if (!stage) return;
 
         var player = stage.getAttribute('data-player');
@@ -215,9 +223,7 @@
             return;
         }
 
-        var btn = root.querySelector('.iiif-player-toggle');
-        var overlay = root.querySelector('.iiif-player-overlay');
-        var closeBtn = root.querySelector('.iiif-player-close');
+        var closeBtn = overlay ? overlay.querySelector('.iiif-player-close') : null;
         var tpl = root.querySelector('template.iiif-player-template');
         if (!btn || !overlay || !closeBtn) return;
 
