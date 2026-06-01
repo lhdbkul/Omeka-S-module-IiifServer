@@ -143,11 +143,28 @@ trait TraitDescriptiveRights
         // Take the first allowed url.
         if ($isPresentation3 && $url) {
             if ($this->checkAllowedLicense($url)) {
-                return $url;
+                return $this->normalizeLicenseUrl($url);
             }
             return null;
         }
 
+        return $url;
+    }
+
+    /**
+     * Normalize the scheme of Creative Commons and RightsStatements uris to
+     * "http", the canonical machine-readable form required by the IIIF
+     * Presentation 3.0 specification and its validator. Data and config may use
+     * the "https" variant for human display, but it is rejected as "rights".
+     * @link https://iiif.io/api/presentation/3.0/#31-descriptive-properties
+     */
+    protected function normalizeLicenseUrl(string $url): string
+    {
+        if (strpos($url, 'https://creativecommons.org/') === 0
+            || strpos($url, 'https://rightsstatements.org/') === 0
+        ) {
+            return 'http://' . substr($url, 8);
+        }
         return $url;
     }
 
