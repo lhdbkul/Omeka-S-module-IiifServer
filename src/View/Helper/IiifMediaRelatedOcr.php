@@ -71,7 +71,7 @@ class IiifMediaRelatedOcr extends AbstractHelper
      * @see \IiifServer\View\Helper\IiifManifest2::otherContent()
      * @see \IiifServer\View\Helper\IiifManifest2::relatedMediaOcr()
      */
-    public function __invoke(MediaRepresentation $media, ?int $indexOne = null): ?MediaRepresentation
+    public function __invoke(\Omeka\Api\Representation\AbstractResourceEntityRepresentation $media, ?int $indexOne = null): ?MediaRepresentation
     {
         static $relatedMedias = [];
 

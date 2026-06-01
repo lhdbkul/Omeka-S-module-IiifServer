@@ -1211,12 +1211,29 @@ class ConfigForm extends Form
         $fieldset = $this->get('fieldset_dimensions');
         $fieldset
             ->add([
+                'name' => 'scope',
+                'type' => CommonElement\OptionalMultiCheckbox::class,
+                'options' => [
+                    'element_group' => 'bulk',
+                    'label' => 'Scope', // @translate
+                    'info' => 'Choose what to process. At least one must be checked.', // @translate
+                    'value_options' => [
+                        'items' => 'Media attached to items', // @translate
+                        'digital_objects' => 'Digital objects', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'dimensions_scope',
+                    'value' => ['items', 'digital_objects'],
+                ],
+            ])
+            ->add([
                 'name' => 'query',
                 'type' => OmekaElement\Query::class,
                 'options' => [
                     'element_group' => 'bulk',
                     'label' => 'Query to filter items to size', // @translate
-                    'info' => 'This query will be used to select all items whose attached images, audio and video files will be prepared in the background.', // @translate
+                    'info' => 'This query will be used to select all items whose attached images, audio and video files will be prepared in the background. Ignored when scope is "Digital objects only".', // @translate
                     'documentation' => 'https://omeka.org/s/docs/user-manual/sites/site_pages/#browse-preview',
                 ],
                 'attributes' => [

@@ -29,6 +29,9 @@ trait IiifManifestLinkTrait
     {
         return [
             'items',
+            'item_sets',
+            'media',
+            'digital_objects',
         ];
     }
 

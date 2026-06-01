@@ -175,7 +175,10 @@ class IiifUrl extends AbstractHelper
             $resourceName = $resource->resourceName();
         }
 
-        if ($resourceName === 'media') {
+        // Digital objects are treated as media everywhere: same image API
+        // endpoint (info.json), not manifest. DO replaces media in the data
+        // model so the URL helpers must mirror media behavior.
+        if ($resourceName === 'media' || $resourceName === 'digital_objects') {
             return $this->iiifMediaUrl->__invoke($resource, null, $version, $params);
         }
 
@@ -190,8 +193,12 @@ class IiifUrl extends AbstractHelper
             'id' => $this->iiifCleanIdentifiers->__invoke($id),
         ];
 
+        $routeName = $route ?: ($mapRouteNames[$resourceName] ?? null);
+        if (!$routeName) {
+            return '';
+        }
         $urlIiif = $this->url->__invoke(
-            $route ?: $mapRouteNames[$resourceName],
+            $routeName,
             $params,
             $urlOptions
         );

@@ -2,6 +2,7 @@
 
 namespace IiifServer\Job;
 
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\Job\AbstractJob;
 
@@ -91,6 +92,26 @@ class MediaDimensions extends AbstractJob
             $query = $sQuery ?: [];
         }
 
+        $scope = (array) $this->getArg('scope', ['items', 'digital_objects']);
+        $scope = array_values(array_intersect($scope, ['items', 'digital_objects']));
+        if (!$scope) {
+            $this->logger->warn(
+                'No scope selected (items / digital objects). Nothing to do.' // @translate
+            );
+            return;
+        }
+        $doItems = in_array('items', $scope, true);
+        $doDigitalObjects = in_array('digital_objects', $scope, true);
+
+        $this->prepareSizer();
+
+        $this->totalToProcess = 0;
+        $this->totalMedias = 0;
+        $this->totalProcessed = 0;
+        $this->totalSucceed = 0;
+        $this->totalFailed = 0;
+        $this->totalSkipped = 0;
+
         $response = $api->search('items', $query);
         $this->totalToProcess = $response->getTotalResults();
         if (empty($this->totalToProcess)) {
@@ -100,19 +121,16 @@ class MediaDimensions extends AbstractJob
             return;
         }
 
-        $this->prepareSizer();
-
         $this->logger->info(
-            'Starting bulk sizing for {total} items ({mode} media).', // @translate
-            ['total' => $this->totalToProcess, 'mode' => $this->filter]
+            'Starting bulk sizing for {total} items ({mode} media, scope: {scope}).', // @translate
+            ['total' => $this->totalToProcess, 'mode' => $this->filter, 'scope' => implode(', ', $scope)]
         );
 
+        // Collect ids of digital objects referenced by items, to deduplicate
+        // across items (a DO can be shared by many items).
+        $doIds = [];
+
         $offset = 0;
-        $this->totalMedias = 0;
-        $this->totalProcessed = 0;
-        $this->totalSucceed = 0;
-        $this->totalFailed = 0;
-        $this->totalSkipped = 0;
         while (true) {
             /** @var \Omeka\Api\Representation\ItemRepresentation[] $items */
             $items = $api
@@ -131,20 +149,35 @@ class MediaDimensions extends AbstractJob
                     break 2;
                 }
 
-                /** @var \Omeka\Api\Representation\MediaRepresentation $media */
-                foreach ($item->media() as $media) {
-                    $mainMediaType = strtok((string) $media->mediaType(), '/');
-                    if (in_array($mainMediaType, ['image', 'audio', 'video'])
-                        // For ingester bulk_upload, wait that the process is
-                        // finished, else the thumbnails won't be available and
-                        // the size of derivative will be the fallback ones.
-                        && $media->ingester() !== 'bulk_upload'
-                    ) {
-                        ++$this->totalMedias;
-                        $this->prepareSize($media);
+                if ($doItems) {
+                    /** @var \Omeka\Api\Representation\MediaRepresentation $media */
+                    foreach ($item->media() as $media) {
+                        $mainMediaType = strtok((string) $media->mediaType(), '/');
+                        if (in_array($mainMediaType, ['image', 'audio', 'video'])
+                            // For ingester bulk_upload, wait that the process
+                            // is finished, else the thumbnails won't be
+                            // available and the size of derivative will be the
+                            // fallback.
+                            && $media->ingester() !== 'bulk_upload'
+                        ) {
+                            ++$this->totalMedias;
+                            $this->prepareSize($media);
+                        }
+                        unset($media);
                     }
-                    unset($media);
                 }
+
+                if ($doDigitalObjects) {
+                    foreach ($item->values() as $property) {
+                        foreach ($property['values'] as $value) {
+                            $vr = $value->valueResource();
+                            if ($vr && $vr->resourceName() === 'digital_objects') {
+                                $doIds[$vr->id()] = true;
+                            }
+                        }
+                    }
+                }
+
                 unset($item);
 
                 ++$this->totalProcessed;
@@ -152,6 +185,33 @@ class MediaDimensions extends AbstractJob
 
             $this->entityManager->clear();
             $offset += self::SQL_LIMIT;
+        }
+
+        // Second pass: digital objects referenced by the matched items.
+        if ($doDigitalObjects && $doIds) {
+            $doIds = array_keys($doIds);
+            foreach (array_chunk($doIds, self::SQL_LIMIT) as $chunk) {
+                if ($this->shouldStop()) {
+                    break;
+                }
+                try {
+                    $dos = $api->search('digital_objects', ['id' => $chunk])->getContent();
+                } catch (\Omeka\Api\Exception\BadRequestException $e) {
+                    break;
+                }
+                foreach ($dos as $do) {
+                    if ($this->shouldStop()) {
+                        break 2;
+                    }
+                    $mainMediaType = strtok((string) $do->mediaType(), '/');
+                    if (in_array($mainMediaType, ['image', 'audio', 'video'])) {
+                        ++$this->totalMedias;
+                        $this->prepareSize($do);
+                    }
+                    unset($do);
+                }
+                $this->entityManager->clear();
+            }
         }
 
         $this->logger->notice(
@@ -174,7 +234,8 @@ class MediaDimensions extends AbstractJob
         $this->mediaDimension = $services->get('ControllerPluginManager')->get('mediaDimension');
         // The api cannot update value "data", so use entity manager.
         $this->entityManager = $services->get('Omeka\EntityManager');
-        $this->mediaRepository = $this->entityManager->getRepository(\Omeka\Entity\Media::class);
+        // Use Resource repository to support both Media and DigitalObject.
+        $this->mediaRepository = $this->entityManager->getRepository(\Omeka\Entity\Resource::class);
 
         $this->filter = $this->getArg('filter', 'all');
         if (!in_array($this->filter, ['all', 'sized', 'unsized'])) {
@@ -189,7 +250,7 @@ class MediaDimensions extends AbstractJob
      * @see \IiifServer\Module::prepareSizeItem()
      * @see \IiifServer\Job\MediaDimensions::prepareSize()
      */
-    protected function prepareSize(MediaRepresentation $media): void
+    protected function prepareSize(AbstractResourceEntityRepresentation $media): void
     {
         $mainMediaType = strtok((string) $media->mediaType(), '/');
         if (!in_array($mainMediaType, ['image', 'audio', 'video'])) {

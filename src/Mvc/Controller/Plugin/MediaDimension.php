@@ -7,6 +7,7 @@ use finfo;
 use JamesHeinrich\GetID3\GetId3;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use Omeka\Api\Adapter\Manager as AdapterManager;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\AssetRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\Entity\Asset;
@@ -80,7 +81,10 @@ class MediaDimension extends AbstractPlugin
      */
     public function __invoke($media, string $type = 'original', bool $force = false): array
     {
-        if ($media instanceof MediaRepresentation) {
+        if ($media instanceof MediaRepresentation
+            || (class_exists('DigitalObject\Module', false)
+                && $media instanceof \DigitalObject\Api\Representation\DigitalObjectRepresentation)
+        ) {
             return $this->dimensionMedia($media, $type, $force);
         }
         if ($media instanceof AssetRepresentation) {
@@ -119,7 +123,7 @@ class MediaDimension extends AbstractPlugin
      *
      * @throws RuntimeException
      */
-    protected function dimensionMedia(MediaRepresentation $media, string $type, bool $force): array
+    protected function dimensionMedia(AbstractResourceEntityRepresentation $media, string $type, bool $force): array
     {
         // Check if this is a media (image, video, audio).
         $mainMediaType = substr((string) $media->mediaType(), 0, 5);
@@ -179,7 +183,8 @@ class MediaDimension extends AbstractPlugin
 
         // Cache dimensions in media data to avoid computation on next request.
         if ($result['width'] || $result['height'] || $result['duration']) {
-            $this->cacheMediaDimensions($media->id(), $type, $result);
+            $table = $media->resourceName() === 'digital_objects' ? 'digital_object' : 'media';
+            $this->cacheMediaDimensions($media->id(), $type, $result, $table);
         }
 
         return $result;
@@ -358,15 +363,20 @@ class MediaDimension extends AbstractPlugin
     protected function cacheMediaDimensions(
         int $mediaId,
         string $type,
-        array $dimensions
+        array $dimensions,
+        string $table = 'media'
     ): void {
         // Only safe type values (original, large, medium, square).
         if (!preg_match('/^[a-zA-Z][\w-]*$/', $type)) {
             return;
         }
+        // Allow-list table names to avoid SQL injection via the parameter.
+        if (!in_array($table, ['media', 'digital_object'], true)) {
+            return;
+        }
         try {
             $raw = $this->connection->fetchOne(
-                'SELECT `data` FROM `media` WHERE `id` = ?',
+                "SELECT `data` FROM `$table` WHERE `id` = ?",
                 [$mediaId]
             );
             $mediaData = $raw ? json_decode($raw, true) : [];
@@ -379,7 +389,7 @@ class MediaDimension extends AbstractPlugin
                 'duration' => $dimensions['duration'] !== null ? (float) $dimensions['duration'] : null,
             ];
             $this->connection->executeStatement(
-                'UPDATE `media` SET `data` = ? WHERE `id` = ?',
+                "UPDATE `$table` SET `data` = ? WHERE `id` = ?",
                 [json_encode($mediaData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $mediaId]
             );
         } catch (\Throwable $e) {

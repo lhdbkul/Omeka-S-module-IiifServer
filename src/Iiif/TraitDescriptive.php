@@ -330,7 +330,7 @@ trait TraitDescriptive
         $isCanvas = $this->type === 'Canvas';
 
         // For canvas, check if tthe parent items contains a list media to protect.
-        if ($isCanvas && $defaultPlaceholder && $this->resource instanceof MediaRepresentation) {
+        if ($isCanvas && $defaultPlaceholder && AbstractType::isMediaLikeResource($this->resource) && $this->resource->item()) {
             /** @var \Omeka\Api\Representation\ValueRepresentation[] $values */
             $resourceId = (int) $this->resource->id();
             $values = $this->resource->item()->value($property, ['all' => true]);
@@ -390,6 +390,7 @@ trait TraitDescriptive
 
         if ($subType === 'placeholder') {
             if (!$this->resource instanceof itemRepresentation
+                || !isset($this->mediaInfos)
                 || count($this->mediaInfos) !== 2
             ) {
                 return null;
@@ -421,7 +422,7 @@ trait TraitDescriptive
             }
 
             $contentResource = $second['content'];
-        } elseif (!$this->resource instanceof MediaRepresentation
+        } elseif (!AbstractType::isMediaLikeResource($this->resource)
             || $this->options['index'] !== 1
             || count($this->options['mediaInfos']['indexes']) !== 2
         ) {

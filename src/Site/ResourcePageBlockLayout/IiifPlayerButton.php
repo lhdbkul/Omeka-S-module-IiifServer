@@ -30,6 +30,8 @@ trait IiifPlayerButtonTrait
             'items',
             'item_sets',
             'media',
+            'digital_objects',
+            'media',
         ];
     }
 

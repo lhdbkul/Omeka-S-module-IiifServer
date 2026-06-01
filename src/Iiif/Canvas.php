@@ -138,7 +138,11 @@ class Canvas extends AbstractResourceType
     {
         parent::setResource($resource);
 
-        if (!$resource instanceof MediaRepresentation) {
+        // Accept Media and DigitalObject (file-backed resources with a parent
+        // item context).
+        $isDo = class_exists('DigitalObject\Module', false)
+            && $resource instanceof \DigitalObject\Api\Representation\DigitalObjectRepresentation;
+        if (!$resource instanceof MediaRepresentation && !$isDo) {
             $message = new PsrMessage(
                 'Resource #{resource_id}: A media is required to build a Canvas.', // @translate
                 ['resource_id' => $resource->id()]
@@ -256,9 +260,9 @@ class Canvas extends AbstractResourceType
         }
 
         $this->cache['seeAlso'] = [];
-        if ($this->resource instanceof MediaRepresentation) {
-            // Add the associated media to the current media.
-            // Currently, only the xml alto is managed.
+        if (self::isMediaLikeResource($this->resource)) {
+            // Add the associated media to the current media. Currently, only
+            // the xml alto is managed.
             $opts = $this->options;
             $opts['callingResource'] = $this->resource;
             $opts['callingMotivation'] = 'seeAlso';
@@ -358,7 +362,7 @@ class Canvas extends AbstractResourceType
         }
 
         $this->cache['annotations'] = [];
-        if ($this->resource instanceof MediaRepresentation) {
+        if (self::isMediaLikeResource($this->resource)) {
             $opts = $this->options;
             $opts['callingResource'] = $this->resource;
             $opts['callingMotivation'] = 'annotation';

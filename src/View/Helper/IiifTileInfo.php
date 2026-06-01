@@ -31,6 +31,7 @@ namespace IiifServer\View\Helper;
 
 use ImageServer\Mvc\Controller\Plugin\TileInfo;
 use Laminas\View\Helper\AbstractHelper;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 class IiifTileInfo extends AbstractHelper
@@ -57,9 +58,13 @@ class IiifTileInfo extends AbstractHelper
      * @uses \ImageServer\Mvc\Controller\Plugin\TileInfo
      * @see \ImageServer\Mvc\Controller\Plugin\TileMediaInfo
      */
-    public function __invoke(MediaRepresentation $media, ?string $format = null): ?array
+    public function __invoke(AbstractResourceEntityRepresentation $media, ?string $format = null): ?array
     {
-        // Process like tileMediaInfo, but the data are retrieved when missing.
+        // The helper is also called for IiifSearch / IiifServer DigitalObject
+        // canvases. Tile info is only stored on regular Media (and on
+        // DigitalObjects that share the same mediaData layout): keep the method
+        // open to either representation. Process like tileMediaInfo, but the
+        // data are retrieved when missing.
         $tileData = $media->mediaData();
         if (empty($tileData['tile'])) {
             if (empty($this->tileInfo)) {

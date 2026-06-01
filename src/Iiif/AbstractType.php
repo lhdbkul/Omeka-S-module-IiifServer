@@ -408,4 +408,20 @@ abstract class AbstractType extends ArrayObject implements JsonSerializable
             || is_bool($v)
             || !empty($v);
     }
+
+    /**
+     * Whether the resource is a Media or a DigitalObject.
+     *
+     * Media and digital objects have files usable as iiif canvas content.
+     * Digital objects expose the same file api as media plus a transient parent
+     * item settable via setItem().
+     */
+    public static function isMediaLikeResource($resource): bool
+    {
+        if ($resource instanceof \Omeka\Api\Representation\MediaRepresentation) {
+            return true;
+        }
+        return class_exists('DigitalObject\Module', false)
+            && $resource instanceof \DigitalObject\Api\Representation\DigitalObjectRepresentation;
+    }
 }

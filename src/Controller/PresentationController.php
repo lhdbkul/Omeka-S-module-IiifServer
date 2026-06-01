@@ -399,7 +399,13 @@ class PresentationController extends AbstractActionController
         try {
             $media = $api->read('media', ['item' => $id, 'id' => $name])->getContent();
         } catch (\Omeka\Api\Exception\NotFoundException $e) {
-            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+            // Fallback: the canvas target may be a DigitalObject referenced by
+            // the item via property values (no item FK on DO).
+            try {
+                $media = $api->read('digital_objects', ['id' => $name])->getContent();
+            } catch (\Throwable $e2) {
+                return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+            }
         }
 
         $viewHelpers = $this->viewHelpers();

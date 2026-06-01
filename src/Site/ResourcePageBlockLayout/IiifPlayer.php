@@ -30,6 +30,8 @@ trait IiifPlayerTrait
             'items',
             'item_sets',
             'media',
+            'digital_objects',
+            'media',
         ];
     }
 

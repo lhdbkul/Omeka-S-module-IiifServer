@@ -238,14 +238,27 @@ trait IiifServerControllerTrait
                 try {
                     return $this->api()->read('media', $id)->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                }
+                try {
+                    return $this->api()->read('digital_objects', $id)->getContent();
+                } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                    return null;
+                } catch (\Omeka\Api\Exception\BadRequestException $e) {
                     return null;
                 }
+                // no break.
             case 'storage_id':
                 // The storage id may contain slashs (module ArchiveRepertory).
                 $id = strtr($id, ['%2F' => '/', '%2f' => '/']);
                 try {
                     return $this->api()->read('media', ['storageId' => $id])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                }
+                try {
+                    return $this->api()->read('digital_objects', ['storage_id' => $id])->getContent();
+                } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                    return null;
+                } catch (\Omeka\Api\Exception\BadRequestException $e) {
                     return null;
                 }
             case 'filename':
@@ -264,6 +277,12 @@ trait IiifServerControllerTrait
                     // Anyway, storage_id is unique.
                     return $this->api()->read('media', ['storageId' => $storageId])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                }
+                try {
+                    return $this->api()->read('digital_objects', ['storage_id' => $storageId])->getContent();
+                } catch (\Omeka\Api\Exception\NotFoundException $e) {
+                    return null;
+                } catch (\Omeka\Api\Exception\BadRequestException $e) {
                     return null;
                 }
         }

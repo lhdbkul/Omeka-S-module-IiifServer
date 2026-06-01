@@ -30,6 +30,7 @@
 namespace IiifServer\View\Helper;
 
 use Laminas\View\Helper\AbstractHelper;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 class IiifTypeOfMedia extends AbstractHelper
@@ -257,7 +258,7 @@ class IiifTypeOfMedia extends AbstractHelper
         'http://library.stanford.edu/iiif/image-api/1.1/context.json' => 'Image',
     ];
 
-    public function __invoke(MediaRepresentation $media): ?string
+    public function __invoke(AbstractResourceEntityRepresentation $media): ?string
     {
         static $mediaIiifTypes = [];
 

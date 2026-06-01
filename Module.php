@@ -539,9 +539,10 @@ class Module extends AbstractModule
         } else {
             $query = [];
             parse_str($rawPost['fieldset_dimensions']['query'] ?? '', $query);
+            $scope = $rawPost['fieldset_dimensions']['scope'] ?? ['items', 'digital_objects'];
             $job = $dispatcher->dispatch(
                 \IiifServer\Job\MediaDimensions::class,
-                ['query' => $query ?: []]
+                ['query' => $query ?: [], 'scope' => $scope]
             );
             $message = 'Storing dimensions of images, audio and video ({link}job #{job_id}{link_end}, {link_log}logs{link_end})'; // @translate
         }

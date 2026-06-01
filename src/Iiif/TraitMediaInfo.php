@@ -29,6 +29,7 @@
 
 namespace IiifServer\Iiif;
 
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 trait TraitMediaInfo
@@ -60,7 +61,7 @@ trait TraitMediaInfo
      * can be a canvas motivation painting or supplementing, or a canvas
      * rendering, or a manifest rendering.
      */
-    protected function mediaInfo(?MediaRepresentation $media): ?array
+    protected function mediaInfo(?AbstractResourceEntityRepresentation $media): ?array
     {
         if ($media === null) {
             return null;
@@ -79,7 +80,7 @@ trait TraitMediaInfo
      * This method is used for media outside manifest, for example a
      * placeholderCanvas.
      */
-    protected function mediaInfoSingle(?MediaRepresentation $media): ?array
+    protected function mediaInfoSingle(?AbstractResourceEntityRepresentation $media): ?array
     {
         if ($media === null) {
             return null;
@@ -184,6 +185,53 @@ trait TraitMediaInfo
             }
         }
         unset($medias);
+
+        // Collect DigitalObjects linked to the item via the configured
+        // properties. They are treated as media: classified by mediaType
+        // through the same ContentResource pipeline.
+        $viewHelpers = $this->services->get('ViewHelperManager');
+        if ($viewHelpers->has('digitalObjectInline')) {
+            $digitalObjectInline = $viewHelpers->get('digitalObjectInline');
+            $linkedDos = $digitalObjectInline($this->resource);
+            foreach ($linkedDos as $do) {
+                // Surface the parent item as DO context so downstream IIIF
+                // classes can call $resource->item() uniformly.
+                if (method_exists($do, 'setItem')) {
+                    $do->setItem($this->resource);
+                }
+                if (!$do->isPublic() && !$this->isAllowedViewAll) {
+                    continue;
+                }
+                $doId = $do->id();
+                if (isset($this->mediaInfos[$doId])) {
+                    continue;
+                }
+                $mediaIds[] = $doId;
+                $this->mediaInfos[$doId] = null;
+                $contentResource = new ContentResource();
+                $contentResource->setResource($do);
+                if ($contentResource->hasIdAndType()) {
+                    $iiifType = $contentResource->type();
+                    $bucket = in_array($iiifType, ['Image', 'Video', 'Sound', 'Text', 'Model'])
+                        ? $iiifType
+                        : 'other';
+                    $iiifTypes[$bucket][$doId] = [
+                        'id' => $doId,
+                        'resource' => $do,
+                        'content' => $contentResource,
+                        'relatedMediaOcr' => null,
+                    ];
+                } else {
+                    $iiifTypes['invalid'][$doId] = [
+                        'id' => $doId,
+                        'resource' => $do,
+                        'content' => $contentResource,
+                        'relatedMediaOcr' => null,
+                    ];
+                }
+            }
+            unset($linkedDos);
+        }
 
         // TODO Manage distinction between supplementing and rendering, mainly for text (transcription and/or pdf? Via linked properties?
         // TODO Manage 3D that may uses multiple files.
@@ -328,7 +376,7 @@ trait TraitMediaInfo
     /**
      * Prepare a single media info.
      */
-    private function prepareMediaInfoSingle(MediaRepresentation $media): self
+    private function prepareMediaInfoSingle(AbstractResourceEntityRepresentation $media): self
     {
         $mediaId = $media->id();
 

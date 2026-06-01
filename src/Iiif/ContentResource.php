@@ -123,9 +123,11 @@ class ContentResource extends AbstractResourceType
     {
         parent::setResource($resource);
 
-        if (!$resource instanceof MediaRepresentation) {
+        $isFileLike = $resource instanceof MediaRepresentation
+            || (method_exists($resource, 'mediaType') && method_exists($resource, 'originalUrl'));
+        if (!$isFileLike) {
             $message = new PsrMessage(
-                'Resource #{resource_id}: A media is required to build a ContentResource.', // @translate
+                'Resource #{resource_id}: A media or a file-like resource is required to build a ContentResource.', // @translate
                 ['resource_id' => $resource->id()]
             );
             $this->logger->err($message->getMessage(), $message->getContext());
@@ -157,8 +159,10 @@ class ContentResource extends AbstractResourceType
             return $this->id;
         }
 
-        // Here, the resource is a media.
-        return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
+        // Here, the resource is a media (or a file-like resource without parent
+        // item, such as a DigitalObject).
+        $item = method_exists($this->resource, 'item') ? $this->resource->item() : null;
+        return $this->iiifUrl->__invoke($item ?? $this->resource, 'iiifserver/uri', '3', [
             'type' => 'content-resource',
             'name' => $this->resource->id(),
         ]);

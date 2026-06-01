@@ -29,7 +29,7 @@ class PublicResourceUrl extends AbstractHelper
     {
         // Manage the case where there is no site.
         return $this->defaultSiteSlug
-            ? $resource->siteUrl($this->defaultSiteSlug, $canonical)
+            ? (string) $resource->siteUrl($this->defaultSiteSlug, $canonical)
             : '';
     }
 }

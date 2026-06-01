@@ -3,7 +3,7 @@
 namespace IiifServer\Mvc\Controller\Plugin;
 
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
-use Omeka\Api\Representation\MediaRepresentation;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 class IsIiifMedia extends AbstractPlugin
 {
@@ -28,7 +28,7 @@ class IsIiifMedia extends AbstractPlugin
      * Example config contributed by module IiifRemoteImage:
      *   'iiifserver' => ['media_ingesters' => ['image' => ['iiif-remote-image']]]
      */
-    public function __invoke(MediaRepresentation $media, ?string $type = null): bool
+    public function __invoke(AbstractResourceEntityRepresentation $media, ?string $type = null): bool
     {
         $ingester = $media->ingester();
         if ($type === null) {

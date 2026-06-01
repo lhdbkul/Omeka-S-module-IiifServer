@@ -4,7 +4,7 @@ namespace IiifServer\View\Helper;
 
 use IiifServer\Mvc\Controller\Plugin\IsIiifMedia as IsIiifMediaPlugin;
 use Laminas\View\Helper\AbstractHelper;
-use Omeka\Api\Representation\MediaRepresentation;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 class IsIiifMedia extends AbstractHelper
 {
@@ -15,7 +15,7 @@ class IsIiifMedia extends AbstractHelper
         $this->plugin = $plugin;
     }
 
-    public function __invoke(MediaRepresentation $media, ?string $type = null): bool
+    public function __invoke(AbstractResourceEntityRepresentation $media, ?string $type = null): bool
     {
         return $this->plugin->__invoke($media, $type);
     }

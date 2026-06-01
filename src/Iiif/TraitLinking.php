@@ -349,7 +349,7 @@ trait TraitLinking
         foreach ($values as $value) {
             $vr = $value->resource();
             if ($vr) {
-                if ($vr instanceof  MediaRepresentation) {
+                if (AbstractType::isMediaLikeResource($vr)) {
                     $id = $canvasId($vr);
                     if ($id) {
                         return [
