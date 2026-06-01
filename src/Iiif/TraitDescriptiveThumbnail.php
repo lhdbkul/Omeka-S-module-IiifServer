@@ -110,7 +110,7 @@ trait TraitDescriptiveThumbnail
             $imageComplianceLevelUri = is_array($mediaData['profile']) ? $mediaData['profile'][0] : $mediaData['profile'];
             $imageComplianceLevel = $this->iiifComplianceLevel($mediaData['profile']);
             $imageUrl = $this->iiifThumbnailUrl($imageBaseUri, $imageApiContextUri, $imageComplianceLevel);
-            $thumbnailService = $this->iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri);
+            $thumbnailService = $this->iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri, $imageComplianceLevel);
             $thumbnail = [
                 'id' => $imageUrl,
                 'type' => 'Image',
@@ -224,19 +224,36 @@ trait TraitDescriptiveThumbnail
      * identifier slot)
      * @param string $contextUri Version of the API Image supported by the
      * server, as stated by the JSON-LD context URI
-     * @param string $complianceLevel Compliance level to the API Image
-     * supported by the server
+     * @param string $complianceLevelUri Full compliance level uri to the API
+     * Image supported by the server (from the info.json profile)
+     * @param string $complianceLevel Short compliance level token (level0,
+     * level1 or level2), used as profile for Image API 3
      * @return object $service IIIF Image API service block to be appended to
      * the Manifest
      *
      * @todo Normalize iiif image service as Service.
      */
-    protected function iiifImageService($baseUri, $contextUri, $complianceLevelUri): array
+    protected function iiifImageService($baseUri, $contextUri, $complianceLevelUri, $complianceLevel = 'level2'): array
     {
-        $service = [];
-        $service['@context'] = $contextUri;
-        $service['id'] = $baseUri;
-        $service['profile'] = $complianceLevelUri;
+        $contextUri = (string) $contextUri;
+        $service = ['@context' => $contextUri];
+        // Emit the correct keys depending on the Image API version, as required
+        // for services embedded in a Presentation 3 manifest. Image API 3 uses
+        // "id"/"type" and the short profile token; Image API 1 and 2 keep their
+        // own JSON-LD keywords "@id"/"@type" and the full compliance uri as
+        // profile.
+        // @link https://iiif.io/api/presentation/3.0/#service
+        if ($contextUri === '3' || strpos($contextUri, '/image/3/') !== false) {
+            $service['id'] = $baseUri;
+            $service['type'] = 'ImageService3';
+            $service['profile'] = $complianceLevel;
+        } else {
+            $isV1 = $contextUri === '1.1'
+                || strpos($contextUri, 'library.stanford.edu') !== false;
+            $service['@id'] = $baseUri;
+            $service['@type'] = $isV1 ? 'ImageService1' : 'ImageService2';
+            $service['profile'] = $complianceLevelUri;
+        }
         return $service;
     }
 }
