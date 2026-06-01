@@ -123,6 +123,16 @@ class PresentationController extends AbstractActionController
         // Version may be 2 or 3.
         $version = $this->requestedVersion();
 
+        // Resolve a version-less request ("/iiif/{id}/manifest") to the default
+        // version, so the cache uses the same versioned path as an explicit
+        // request. Otherwise the cache path "iiif/{version}/{id}.manifest.json"
+        // with an empty version collapses to "iiif/{id}.manifest.json", an
+        // orphan that the regeneration job (which writes iiif/2/ and iiif/3/)
+        // never updates, so it stays stale forever.
+        if ($version === '' || $version === null) {
+            $version = (string) $this->settings()->get('iiifserver_manifest_default_version', '3');
+        }
+
         // Compute conditional-cache validators (ETag + Last-Modified) from the
         // item modified date and the max modified date of its media. Skip 304
         // entirely for privileged users (their manifests may differ from the
