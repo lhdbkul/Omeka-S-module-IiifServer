@@ -126,10 +126,7 @@ class Module extends AbstractModule
             return;
         }
 
-        $iiifBase = $matches[1];
-        $routePrefix = $matches[2] ?? '';
         $remainder = $matches[3] ?? '';
-
         if ($remainder === '' || $remainder === '/') {
             return;
         }
@@ -196,12 +193,13 @@ class Module extends AbstractModule
         $encodedIdentifier = implode('%2F', $identifierParts);
 
         $suffixParts = array_slice($segments, $identifierCount);
-        $newRemainder = $suffixParts
-            ? $encodedIdentifier . '/' . implode('/', $suffixParts)
-            : $encodedIdentifier;
+        if ($suffixParts) {
+            $encodedIdentifier .= '/' . implode('/', $suffixParts);
+        }
 
-        $newPath = $iiifBase . $routePrefix . '/' . $newRemainder;
-
+        $iiifBase = $matches[1];
+        $routePrefix = $matches[2] ?? '';
+        $newPath = $iiifBase . $routePrefix . '/' . $encodedIdentifier;
         if ($newPath !== $path) {
             $request->getUri()->setPath($newPath);
         }
