@@ -1817,7 +1817,7 @@ class IiifManifest2 extends AbstractHelper
             return null;
         }
         $iiifSearchUrl = $plugins->get('iiifSearchAnnotationUrl');
-        $altoUrl = $iiifSearchUrl->altoUrl($media->item(), max(0, ((int) $indexOne) - 1));
+        $altoUrl = $iiifSearchUrl->altoUrl($media->item(), (int) $indexOne);
         if (!$altoUrl) {
             return null;
         }
@@ -1840,7 +1840,7 @@ class IiifManifest2 extends AbstractHelper
             return null;
         }
         $iiifSearchUrl = $plugins->get('iiifSearchAnnotationUrl');
-        $listUrl = $iiifSearchUrl->__invoke($media->item(), max(0, ((int) $indexOne) - 1), 2);
+        $listUrl = $iiifSearchUrl->__invoke($media->item(), (int) $indexOne, 2);
         if (!$listUrl) {
             return null;
         }

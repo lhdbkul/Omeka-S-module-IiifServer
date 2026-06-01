@@ -274,10 +274,7 @@ class Canvas extends AbstractResourceType
             return $this->cache['seeAlso'];
         }
         $canvasIndex = (int) ($this->options['index'] ?? 1);
-        $altoUrl = $this->iiifSearchAnnotationUrl->altoUrl(
-            $item,
-            max(0, $canvasIndex - 1)
-        );
+        $altoUrl = $this->iiifSearchAnnotationUrl->altoUrl($item, $canvasIndex);
         if ($altoUrl) {
             $this->cache['seeAlso'][] = [
                 'id' => $altoUrl,
@@ -368,11 +365,7 @@ class Canvas extends AbstractResourceType
             return $this->cache['annotations'];
         }
         $canvasIndex = (int) ($this->options['index'] ?? 1);
-        $url = $this->iiifSearchAnnotationUrl->__invoke(
-            $item,
-            max(0, $canvasIndex - 1),
-            3
-        );
+        $url = $this->iiifSearchAnnotationUrl->__invoke($item, $canvasIndex, 3);
         if ($url) {
             $this->cache['annotations'][] = [
                 'id' => $url,
