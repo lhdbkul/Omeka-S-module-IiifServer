@@ -105,6 +105,7 @@ return [
             'iiifManifestExternal' => View\Helper\IiifManifestExternal::class,
             'iiifManifestLink' => View\Helper\IiifManifestLink::class,
             'iiifTypeOfMedia' => View\Helper\IiifTypeOfMedia::class,
+            'iiifHasDisplayableMedia' => View\Helper\IiifHasDisplayableMedia::class,
             'iiifPlayer' => View\Helper\IiifPlayer::class,
         ],
         'factories' => [
