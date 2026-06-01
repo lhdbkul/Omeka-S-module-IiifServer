@@ -950,22 +950,31 @@ class Module extends AbstractModule
 
         $cacheEnabled = (bool) $settings->get('iiifserver_manifest_cache', false);
 
-        // Count items with many images.
+        // Existence-only probe via EXISTS: the GROUP BY + HAVING short-circuits
+        // at the first item with more than 10 images. The cached flag avoids
+        // re-running it at every form open. The exact count is informational
+        // only; it is not surfaced to keep the audit responsive on large
+        // installations.
         $threshold = 10;
-        $largeItems = (int) $connection->fetchOne(<<<SQL
-            SELECT COUNT(*) FROM (
-                SELECT item_id, COUNT(*) as cnt FROM media
-                WHERE media_type LIKE 'image/%'
-                GROUP BY item_id
-                HAVING cnt > $threshold
-            ) t
-            SQL
-        );
+        $cacheKey = 'iiifserver_audit_large_items';
+        $cached = $settings->get($cacheKey);
+        if (is_array($cached) && isset($cached['at'])
+            && (time() - (int) $cached['at']) < 1800
+        ) {
+            $hasLargeItems = (bool) ($cached['has'] ?? false);
+        } else {
+            $hasLargeItems = (bool) $connection->fetchOne(
+                'SELECT 1 FROM media WHERE media_type LIKE \'image/%\''
+                . ' GROUP BY item_id HAVING COUNT(*) > ? LIMIT 1',
+                [$threshold]
+            );
+            $settings->set($cacheKey, ['at' => time(), 'has' => $hasLargeItems]);
+        }
 
-        if ($largeItems && !$cacheEnabled) {
+        if ($hasLargeItems && !$cacheEnabled) {
             $messenger->addWarning(new PsrMessage(
-                '{count} items have more than {threshold} images. Enabling manifest cache is recommended to avoid slow page loads.', // @translate
-                ['count' => $largeItems, 'threshold' => $threshold]
+                'Some items carry more than {threshold} images. Enabling manifest cache is recommended to avoid slow page loads.', // @translate
+                ['threshold' => $threshold]
             ));
         } elseif ($cacheEnabled) {
             $config = $services->get('Config');
@@ -1003,37 +1012,39 @@ class Module extends AbstractModule
 
     /**
      * Check how many audio/video/image media lack dimensions.
+     *
+     * Strategy on large installations (genovefa: 1M+ media):
+     *  - Re-use a 30-minute cached result when the audit was run recently.
+     *  - Probe via EXISTS (LIMIT 1) instead of COUNT to bail out at the
+     *    first match; only count exactly when no unsized row is found, to
+     *    surface "all dimensioned" success message with a meaningful total.
      */
     protected function checkMediaDimensions(): void
     {
         $services = $this->getServiceLocator();
         $connection = $services->get('Omeka\Connection');
+        $settings = $services->get('Omeka\Settings');
         $messenger = $services->get('ControllerPluginManager')
             ->get('messenger');
 
-        $total = (int) $connection->fetchOne(<<<'SQL'
-            SELECT COUNT(*) FROM media
-            WHERE (media_type LIKE 'image/%'
-                OR media_type LIKE 'audio/%'
-                OR media_type LIKE 'video/%')
-                AND media_type != 'image/svg+xml'
-            SQL
-        );
-        if (!$total) {
+        $cached = $settings->get('iiifserver_audit_media_dimensions');
+        if (is_array($cached)
+            && isset($cached['at'])
+            && (time() - (int) $cached['at']) < 1800
+        ) {
+            $this->renderMediaDimensionsAudit($messenger, $cached);
             return;
         }
 
         // Plain LIKE scan on the JSON text column. It is faster than
-        // JSON_EXTRACT on large tables because it skips JSON parsing
-        // entirely, while relying on the deterministic key order
-        // produced by json_encode. Patterns cover: missing data,
-        // missing "dimensions", missing "original", legacy image
-        // null tuple ({"width":null,"height":null}) and fully-null
-        // audio/video tuple — without matching audio/video rows
+        // JSON_EXTRACT on large tables because it skips JSON parsing entirely,
+        // while relying on the deterministic key order produced by json_encode.
+        // Patterns cover: missing data, missing "dimensions", missing
+        // "original", legacy image null tuple ({"width":null,"height":null})
+        // and fully-null audio/video tuple — without matching audio/video rows
         // that have a valid duration.
-        $unsized = (int) $connection->fetchOne(<<<'SQL'
-            SELECT COUNT(*) FROM media
-            WHERE (media_type LIKE 'image/%'
+        $unsizedFilter = <<<'SQL'
+            (media_type LIKE 'image/%'
                 OR media_type LIKE 'audio/%'
                 OR media_type LIKE 'video/%')
                 AND media_type != 'image/svg+xml'
@@ -1042,20 +1053,55 @@ class Module extends AbstractModule
                     OR data NOT LIKE '%"original":%'
                     OR data LIKE '%"original":{"width":null,"height":null}%'
                     OR data LIKE '%"original":{"width":null,"height":null,"duration":null%')
-            SQL
+            SQL;
+
+        $hasUnsized = (bool) $connection->fetchOne(
+            'SELECT 1 FROM media WHERE ' . $unsizedFilter . ' LIMIT 1'
         );
 
+        if (!$hasUnsized) {
+            $total = (int) $connection->fetchOne(<<<'SQL'
+                SELECT COUNT(*) FROM media
+                WHERE (media_type LIKE 'image/%'
+                    OR media_type LIKE 'audio/%'
+                    OR media_type LIKE 'video/%')
+                    AND media_type != 'image/svg+xml'
+                SQL
+            );
+            $audit = ['at' => time(), 'unsized' => 0, 'total' => $total];
+        } else {
+            // Defer the exact count until the admin asks for it: scanning the
+            // JSON column over a million rows can take tens of seconds. The
+            // actionable information is "some are unsized" — the bulk job logs
+            // the exact progress.
+            $audit = ['at' => time(), 'unsized' => -1, 'total' => null];
+        }
+
+        $settings->set('iiifserver_audit_media_dimensions', $audit);
+        $this->renderMediaDimensionsAudit($messenger, $audit);
+    }
+
+    /**
+     * Format the audit result as a single messenger entry.
+     */
+    protected function renderMediaDimensionsAudit($messenger, array $audit): void
+    {
+        $unsized = (int) ($audit['unsized'] ?? -1);
+        $total = $audit['total'] ?? null;
+
+        if ($unsized === 0 && $total === 0) {
+            return;
+        }
         if ($unsized === 0) {
             $messenger->addSuccess(new PsrMessage(
                 'All {total} media (images, audio, video) have stored dimensions.', // @translate
                 ['total' => $total]
             ));
-        } else {
-            $messenger->addWarning(new PsrMessage(
-                '{unsized} of {total} media (images, audio, video) have no stored dimensions. Run "Media Dimensions" job to speed up manifest generation.', // @translate
-                ['unsized' => $unsized, 'total' => $total]
-            ));
+            return;
         }
+        $messenger->addWarning(new PsrMessage(
+            'Some media (images, audio, video) have no stored dimensions. Run "Media Dimensions" job to speed up manifest generation. The exact count is not computed during the audit to keep the page responsive on large installations.' // @translate
+        ));
     }
 
     /**
@@ -1065,8 +1111,22 @@ class Module extends AbstractModule
     {
         $services = $this->getServiceLocator();
         $connection = $services->get('Omeka\Connection');
+        $settings = $services->get('Omeka\Settings');
         $messenger = $services->get('ControllerPluginManager')
             ->get('messenger');
+
+        // The probe triggers a full manifest build on the receiving end; on
+        // large items that costs seconds even when reachable, and a hung
+        // reverse proxy adds the full 5s timeout per form open. Cache the
+        // result for 1h, with a separate hot-path for the success message.
+        $cacheKey = 'iiifserver_audit_manifest_route';
+        $cached = $settings->get($cacheKey);
+        if (is_array($cached) && isset($cached['at'])
+            && (time() - (int) $cached['at']) < 3600
+        ) {
+            $this->renderManifestRouteAudit($messenger, $cached);
+            return;
+        }
 
         // Find any public item to test.
         $itemId = $connection->fetchOne(<<<'SQL'
@@ -1094,23 +1154,38 @@ class Module extends AbstractModule
         ]);
         $result = @file_get_contents($manifestUrl, false, $context);
         if ($result === false) {
-            $messenger->addWarning(new PsrMessage(
-                'Could not reach manifest URL: {url}. Check server configuration.', // @translate
-                ['url' => $manifestUrl]
-            ));
+            $audit = ['at' => time(), 'status' => 'unreachable', 'url' => $manifestUrl, 'id' => $itemId];
         } else {
             $json = json_decode($result, true);
-            if (empty($json)) {
-                $messenger->addWarning(new PsrMessage(
-                    'Manifest URL {url} returned invalid JSON.', // @translate
-                    ['url' => $manifestUrl]
-                ));
-            } else {
-                $messenger->addSuccess(new PsrMessage(
-                    'Manifest route is working (tested item #{id}).', // @translate
-                    ['id' => $itemId]
-                ));
-            }
+            $audit = empty($json)
+                ? ['at' => time(), 'status' => 'invalid', 'url' => $manifestUrl, 'id' => $itemId]
+                : ['at' => time(), 'status' => 'ok', 'url' => $manifestUrl, 'id' => $itemId];
+        }
+        $settings->set($cacheKey, $audit);
+        $this->renderManifestRouteAudit($messenger, $audit);
+    }
+
+    /**
+     * Format the manifest-route audit result as a single messenger entry.
+     */
+    protected function renderManifestRouteAudit($messenger, array $audit): void
+    {
+        $status = (string) ($audit['status'] ?? '');
+        if ($status === 'ok') {
+            $messenger->addSuccess(new PsrMessage(
+                'Manifest route is working (tested item #{id}).', // @translate
+                ['id' => $audit['id'] ?? null]
+            ));
+        } elseif ($status === 'unreachable') {
+            $messenger->addWarning(new PsrMessage(
+                'Could not reach manifest URL: {url}. Check server configuration.', // @translate
+                ['url' => $audit['url'] ?? null]
+            ));
+        } elseif ($status === 'invalid') {
+            $messenger->addWarning(new PsrMessage(
+                'Manifest URL {url} returned invalid JSON.', // @translate
+                ['url' => $audit['url'] ?? null]
+            ));
         }
     }
 
@@ -1318,6 +1393,35 @@ class Module extends AbstractModule
      * "cantaloupe", "iipimage", "unknown", or null).
      */
     protected function checkExternalImageServer(): array
+    {
+        $services = $this->getServiceLocator();
+        $settings = $services->get('Omeka\Settings');
+        $cached = $settings->get('iiifserver_audit_external_image_server');
+        if (is_array($cached)
+            && isset($cached['at'])
+            && (time() - (int) $cached['at']) < 3600
+            && isset($cached['external'])
+        ) {
+            return [
+                'external' => (bool) $cached['external'],
+                'server' => $cached['server'] ?? null,
+            ];
+        }
+
+        $detected = $this->detectExternalImageServer();
+        $settings->set('iiifserver_audit_external_image_server', [
+            'at' => time(),
+            'external' => (bool) $detected['external'],
+            'server' => $detected['server'] ?? null,
+        ]);
+        return $detected;
+    }
+
+    /**
+     * Real probe (self-request + content analysis). Extracted so
+     * {@see checkExternalImageServer()} can cache its result for 1h.
+     */
+    protected function detectExternalImageServer(): array
     {
         $result = ['external' => false, 'server' => null];
 
