@@ -120,12 +120,43 @@ class PresentationController extends AbstractActionController
             // TODO Manage level reserved.
         }
 
-        // Manifests can be cached by browsers and proxies (1h/24h).
-        $this->getResponse()->getHeaders()
-            ->addHeaderLine('Cache-Control', 'public, max-age=3600, s-maxage=86400');
-
         // Version may be 2 or 3.
         $version = $this->requestedVersion();
+
+        // Compute conditional-cache validators (ETag + Last-Modified) from the
+        // item modified date and the max modified date of its media. Skip 304
+        // entirely for privileged users (their manifests may differ from the
+        // public version).
+        $canCache304 = !$this->userIsAllowed('Omeka\Entity\Resource', 'view-all');
+        if ($canCache304 && $this->getPluginManager()->has('accessLevel')) {
+            $canCache304 = !$this->identity();
+        }
+        $mtime = $this->manifestMtime($resource);
+        $etag = '"manifest-' . ($version ?: 'auto') . '-' . $resource->id() . '-' . $mtime . '"';
+        if ($canCache304) {
+            $request = $this->getRequest();
+            $ifNoneMatch = $request->getHeader('If-None-Match');
+            $ifModifiedSince = $request->getHeader('If-Modified-Since');
+            $matchesEtag = $ifNoneMatch && trim($ifNoneMatch->getFieldValue()) === $etag;
+            $matchesDate = $ifModifiedSince
+                && ($since = strtotime($ifModifiedSince->getFieldValue()))
+                && $since >= $mtime;
+            if ($matchesEtag || $matchesDate) {
+                $response = $this->getResponse();
+                $response->setStatusCode(\Laminas\Http\Response::STATUS_CODE_304);
+                $response->getHeaders()
+                    ->addHeaderLine('ETag', $etag)
+                    ->addHeaderLine('Last-Modified', gmdate('D, d M Y H:i:s', $mtime) . ' GMT')
+                    ->addHeaderLine('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+                return $response;
+            }
+        }
+
+        // Manifests can be cached by browsers and proxies (1h/24h).
+        $this->getResponse()->getHeaders()
+            ->addHeaderLine('Cache-Control', $canCache304 ? 'public, max-age=3600, s-maxage=86400' : 'private, max-age=0, must-revalidate')
+            ->addHeaderLine('ETag', $etag)
+            ->addHeaderLine('Last-Modified', gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
 
         $manifest = null;
         $toCache = false;
@@ -462,5 +493,44 @@ class PresentationController extends AbstractActionController
             }
         }
         return $result;
+    }
+
+    /**
+     * Return the most recent modification timestamp among the resource and its
+     * media (for items). Used to derive ETag/Last-Modified validators for the
+     * manifest.
+     */
+    protected function manifestMtime($resource): int
+    {
+        $tsOf = function ($r) {
+            $m = method_exists($r, 'modified') ? $r->modified() : null;
+            if (!$m) {
+                $m = method_exists($r, 'created') ? $r->created() : null;
+            }
+            return $m instanceof \DateTimeInterface ? $m->getTimestamp() : 0;
+        };
+        $mtime = $tsOf($resource);
+        if (method_exists($resource, 'media')) {
+            foreach ($resource->media() as $media) {
+                $t = $tsOf($media);
+                if ($t > $mtime) {
+                    $mtime = $t;
+                }
+            }
+        } elseif (method_exists($resource, 'items')) {
+            // ItemSet: include the most recent of its items as a proxy. Bound
+            // the loop to keep this cheap on large collections.
+            $i = 0;
+            foreach ($resource->items() as $item) {
+                $t = $tsOf($item);
+                if ($t > $mtime) {
+                    $mtime = $t;
+                }
+                if (++$i > 200) {
+                    break;
+                }
+            }
+        }
+        return $mtime > 0 ? $mtime : time();
     }
 }
