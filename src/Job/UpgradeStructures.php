@@ -83,7 +83,7 @@ class UpgradeStructures extends AbstractJob
             $types['item_ids'] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
         }
 
-        $structures = $connection->executeQuery($qb, $bind, $types)->fetchAllAssociative();
+        $structures = $connection->executeQuery($qb->getSQL(), $bind, $types)->fetchAllAssociative();
         if (!count($structures)) {
             $logger->warn('No structure to process.'); // @translate
             return;

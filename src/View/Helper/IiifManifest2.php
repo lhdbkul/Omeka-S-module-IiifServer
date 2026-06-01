@@ -1528,7 +1528,7 @@ class IiifManifest2 extends AbstractHelper
             $types['thumbnails'] = \Doctrine\DBAL\Connection::PARAM_STR_ARRAY;
         }
 
-        $id = $conn->executeQuery($qb, $bind, $types)->fetchOne();
+        $id = $conn->executeQuery($qb->getSQL(), $bind, $types)->fetchOne();
         if ($id) {
             // TODO Check privacy of media for user. Use read if possible.
             // Media may be private for the user, so use searchOne, not read.
