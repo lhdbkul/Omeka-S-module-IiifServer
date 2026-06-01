@@ -264,8 +264,17 @@ class ImageService3 extends AbstractResourceType
                 $orUrl = true;
                 // no break.
             case 'property':
-                $property = $this->settings->get($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
-                $url = (string) $this->resource->value($property);
+                $properties = $this->settings->get($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
+                $url = '';
+                foreach ((array) $properties as $property) {
+                    if (!$property) {
+                        continue;
+                    }
+                    $url = (string) $this->resource->value($property);
+                    if ($url !== '') {
+                        break;
+                    }
+                }
                 break;
             case 'item_or_url':
                 $orUrl = true;

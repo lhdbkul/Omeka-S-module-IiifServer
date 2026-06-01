@@ -272,8 +272,17 @@ class IiifInfo2 extends AbstractHelper
                 // no break.
             case 'property':
                 if ($resource) {
-                    $property = $setting($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
-                    $url = (string) $resource->value($property);
+                    $properties = $setting($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
+                    $url = '';
+                    foreach ((array) $properties as $property) {
+                        if (!$property) {
+                            continue;
+                        }
+                        $url = (string) $resource->value($property);
+                        if ($url !== '') {
+                            break;
+                        }
+                    }
                 }
                 break;
             case 'none':

@@ -108,8 +108,16 @@ trait TraitDescriptiveRights
                 // no break.
             case 'property':
                 if ($resource) {
-                    $property = $this->settings->get('iiifserver_manifest_rights_property');
-                    $url = ((string) $resource->value($property)) ?: null;
+                    $properties = $this->settings->get('iiifserver_manifest_rights_property');
+                    foreach ((array) $properties as $property) {
+                        if (!$property) {
+                            continue;
+                        }
+                        $url = ((string) $resource->value($property)) ?: null;
+                        if ($url) {
+                            break;
+                        }
+                    }
                 }
                 break;
             case 'none':

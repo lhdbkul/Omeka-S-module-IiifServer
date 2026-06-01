@@ -523,13 +523,15 @@ class ConfigForm extends Form
                 'options' => [
                     'element_group' => 'metadata',
                     'label' => 'Property to use for rights', // @translate
+                    'info' => 'Select one or more properties: the first value will be used.', // @translate
                     'empty_option' => '',
                     'term_as_value' => true,
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_manifest_rights_property',
                     'class' => 'chosen-select',
-                    'data-placeholder' => 'Select a property…', // @translate
+                    'multiple' => true,
+                    'data-placeholder' => 'Select properties…', // @translate
                 ],
                 'use_hidden_element' => true,
             ])

@@ -552,7 +552,7 @@ return [
             'iiifserver_manifest_attribution_property' => '',
             'iiifserver_manifest_attribution_default' => '',
             'iiifserver_manifest_rights' => 'property_or_url',
-            'iiifserver_manifest_rights_property' => 'dcterms:license',
+            'iiifserver_manifest_rights_property' => ['dcterms:license', 'dcterms:rights'],
             'iiifserver_manifest_rights_uri' => 'https://rightsstatements.org/vocab/CNE/1.0/',
             'iiifserver_manifest_rights_url' => '',
             'iiifserver_manifest_rights_text' => '',
