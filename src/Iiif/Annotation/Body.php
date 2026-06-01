@@ -224,11 +224,27 @@ class Body extends AbstractResourceType
                     continue;
                 }
                 $level = strtok('/') ?: '0';
-                $imageResourceService = [
-                    'id' => $this->iiifMediaUrl->__invoke($this->resource, 'imageserver/id', $service),
-                    'type' => 'ImageService' . $service,
-                    'profile' => 'level' . $level,
-                ];
+                $id = $this->iiifMediaUrl->__invoke($this->resource, 'imageserver/id', $service);
+                if ((int) $service >= 3) {
+                    // Image API 3 uses the Presentation 3 keys "id"/"type" and
+                    // the short profile token "level{n}".
+                    $imageResourceService = [
+                        'id' => $id,
+                        'type' => 'ImageService' . $service,
+                        'profile' => 'level' . $level,
+                    ];
+                } else {
+                    // Services from previous specifications (Image API 1 and 2)
+                    // keep their own JSON-LD keywords "@id"/"@type" and the
+                    // full compliance uri as profile when embedded in a
+                    // Presentation 3 manifest.
+                    // @link https://iiif.io/api/presentation/3.0/#service
+                    $imageResourceService = [
+                        '@id' => $id,
+                        '@type' => 'ImageService' . $service,
+                        'profile' => 'http://iiif.io/api/image/' . $service . '/level' . $level . '.json',
+                    ];
+                }
                 $imageResourceService += $resourceIiifTileInfo;
                 $imageResourceServices[] = $imageResourceService;
             }
