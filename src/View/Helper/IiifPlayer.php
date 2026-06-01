@@ -46,6 +46,9 @@ class IiifPlayer extends AbstractHelper
         $sidebarPosition = $options['sidebarPosition']
             ?? $siteSettings('iiifserver_player_osd_sidebar', 'bottom');
         $height = $options['height'] ?? $siteSettings('iiifserver_player_inline_height', '600px');
+        $showZoom = array_key_exists('showZoom', $options)
+            ? (bool) $options['showZoom']
+            : (bool) $siteSettings('iiifserver_player_osd_show_zoom', false);
 
         return $view->partial('common/iiif-player', [
             'resource' => $resource,
@@ -56,6 +59,7 @@ class IiifPlayer extends AbstractHelper
             'sidebarPosition' => $sidebarPosition,
             'inline' => $inline,
             'height' => $height,
+            'showZoom' => $showZoom,
         ]);
     }
 }

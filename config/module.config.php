@@ -652,6 +652,7 @@ return [
             'iiifserver_player_inline_height' => '600px',
             'iiifserver_player_button_label' => 'Open IIIF viewer', // @translate
             'iiifserver_player_button_lazy' => false,
+            'iiifserver_player_osd_show_zoom' => false,
         ],
         // Registry of ingesters producing iiif media, grouped by type.
         // Modules (IIIF Remote Image, IIIF Remote Video, etc.) may contribute

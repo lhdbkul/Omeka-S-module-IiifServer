@@ -27,8 +27,10 @@
 }
 
 /* Force every direct child to fill the stage (except sidebar layout, which
-   has its own flex children iiif-player-osd-area + iiif-player-sidebar). */
-.iiif-player-button .iiif-player-stage:not([class*="iiif-player-sidebar-"]) > * {
+   has its own flex children iiif-player-osd-area + iiif-player-sidebar). The
+   zoom indicator is an absolutely-positioned overlay and must keep its own
+   size. */
+.iiif-player-button .iiif-player-stage:not([class*="iiif-player-sidebar-"]) > *:not(.iiif-player-zoom) {
     width: 100% !important;
     height: 100% !important;
 }
@@ -66,6 +68,27 @@
     min-width: 0;
     position: relative;
     background: #222;
+}
+
+.iiif-player-zoom {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.2;
+    border-radius: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.iiif-player-zoom.is-visible {
+    opacity: 1;
 }
 
 .iiif-player-button .iiif-player-sidebar-left,

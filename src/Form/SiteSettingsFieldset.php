@@ -121,6 +121,18 @@ class SiteSettingsFieldset extends Fieldset
                     'id' => 'iiifserver_player_button_lazy',
                 ],
             ])
+            ->add([
+                'name' => 'iiifserver_player_osd_show_zoom',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'element_group' => 'player',
+                    'label' => 'OpenSeadragon viewer: Display the current zoom percentage', // @translate
+                    'info' => 'Shows a small overlay with the zoom level (100 % = fit to viewport). The position and visibility behavior can be customized via theme CSS.', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_player_osd_show_zoom',
+                ],
+            ])
         ;
     }
 }

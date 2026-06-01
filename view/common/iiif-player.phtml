@@ -9,6 +9,7 @@
  * @var string $sidebarPosition
  * @var bool $inline
  * @var string $height
+ * @var bool $showZoom
  */
 
 $plugins = $this->getHelperPluginManager();
@@ -124,6 +125,9 @@ switch ($player) {
         ];
         $stageAttrs['data-osd-options'] = json_encode($osdOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $stageAttrs['data-osd-strings'] = json_encode($osdStrings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!empty($showZoom)) {
+            $stageAttrs['data-show-zoom'] = '1';
+        }
         break;
 
     default:

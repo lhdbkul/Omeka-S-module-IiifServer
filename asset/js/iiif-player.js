@@ -19,6 +19,47 @@
         });
     }
 
+    function attachZoomIndicator(viewer, inner) {
+        var host = inner.parentNode;
+        if (!host || host.querySelector('.iiif-player-zoom')) return;
+        var el = document.createElement('div');
+        el.className = 'iiif-player-zoom';
+        el.setAttribute('aria-live', 'polite');
+        el.textContent = '';
+        host.appendChild(el);
+
+        var hideTimer = null;
+        var lastPct = null;
+        function show() {
+            el.classList.add('is-visible');
+            if (hideTimer) clearTimeout(hideTimer);
+            hideTimer = setTimeout(function () {
+                el.classList.remove('is-visible');
+            }, 3000);
+        }
+        function update(force) {
+            var vp = viewer.viewport;
+            if (!vp) return;
+            // 100 % = 1 image pixel rendered on 1 screen pixel (image displayed
+            // at its native resolution). imageToViewportZoom(1) returns the
+            // viewport zoom that achieves this 1:1 ratio.
+            var nativeZoom = vp.imageToViewportZoom ? vp.imageToViewportZoom(1) : null;
+            if (!nativeZoom) return;
+            var pct = Math.round((vp.getZoom(true) / nativeZoom) * 100);
+            if (pct === lastPct && !force) return;
+            lastPct = pct;
+            el.textContent = pct + ' %';
+            show();
+        }
+        // 'zoom' is not a viewer-level event in OpenSeadragon. The relevant
+        // events are 'open' (initial render) and 'animation' (continuous ticks
+        // during zoom/pan; we filter pan-only updates by comparing rounded
+        // percentages).
+        viewer.addHandler('open', function () { update(true); });
+        viewer.addHandler('animation', function () { update(false); });
+        if (viewer.world && viewer.world.getItemCount() > 0) update(true);
+    }
+
     function initCore(stage) {
         var player = stage.getAttribute('data-player');
         var embedId = stage.getAttribute('data-embed-id');
@@ -142,6 +183,8 @@
             var extraOpts = optsJson ? JSON.parse(optsJson) : {};
             var strings = stringsJson ? JSON.parse(stringsJson) : {};
 
+            var showZoom = stage.getAttribute('data-show-zoom') === '1';
+
             var start2 = function () {
                 Object.keys(strings).forEach(function (k) {
                     window.OpenSeadragon.setString(k, strings[k]);
@@ -151,7 +194,9 @@
                 opts.prefixUrl = prefix;
                 opts.tileSources = [toTileSource(firstTile)];
                 window._iiifPlayerOsd = window._iiifPlayerOsd || {};
-                window._iiifPlayerOsd[inner.id] = window.OpenSeadragon(opts);
+                var viewer = window.OpenSeadragon(opts);
+                window._iiifPlayerOsd[inner.id] = viewer;
+                if (showZoom) attachZoomIndicator(viewer, inner);
             };
             if (window.OpenSeadragon) start2(); else loadScript(assetJs, start2);
         }
