@@ -228,23 +228,6 @@ class Module extends AbstractModule
             ))->setTranslator($translator);
         }
 
-        $config = $services->get('Config');
-        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-
-        if (!$this->checkDestinationDir($basePath . '/iiif/2')) {
-            $errors[] = (string) (new PsrMessage(
-                'The directory "{directory}" is not writeable.', // @translate
-                ['directory' => $basePath . '/iiif']
-            ))->setTranslator($translator);
-        }
-
-        if (!$this->checkDestinationDir($basePath . '/iiif/3')) {
-            $errors[] = (string) (new PsrMessage(
-                'The directory "{directory}" is not writeable.', // @translate
-                ['directory' => $basePath . '/iiif']
-            ))->setTranslator($translator);
-        }
-
         if ($errors) {
             throw new \Omeka\Module\Exception\ModuleCannotInstallException(implode("\n", $errors));
         }
@@ -253,6 +236,7 @@ class Module extends AbstractModule
     protected function postInstall(): void
     {
         $this->updateWhitelist();
+        $this->ensureIiifDirectories();
 
         /** @var \Omeka\Settings\Settings $settings */
         $settings = $this->getServiceLocator()->get('Omeka\Settings');
@@ -815,6 +799,37 @@ class Module extends AbstractModule
         $settings->set('iiifserver_media_api_default_supported_version', $defaultSupportedVersion);
     }
 
+    /**
+     * Ensure IIIF cache directories exist. Create them with warnings if fails,
+     * allowing installation even without writeable /files/iiif.
+     */
+    protected function ensureIiifDirectories(): void
+    {
+        $services = $this->getServiceLocator();
+        $config = $services->get('Config');
+        $basePath = $config['file_store']['local']['base_path']
+            ?: (OMEKA_PATH . '/files');
+
+        $logger = $services->get('Omeka\Logger');
+
+        foreach ([2, 3] as $version) {
+            $dirPath = "$basePath/iiif/$version";
+            if (!is_dir($dirPath)) {
+                if (!@mkdir($dirPath, 0775, true)) {
+                    $logger->warn(
+                        'Could not create IIIF cache directory "{path}". Cache will not work unless created manually with proper permissions.',
+                        ['path' => $dirPath]
+                    );
+                }
+            } elseif (!is_writable($dirPath)) {
+                $logger->warn(
+                    'IIIF cache directory "{path}" exists but is not writable. Cache will not work unless permissions are fixed.',
+                    ['path' => $dirPath]
+                );
+            }
+        }
+    }
+
     protected function updateWhitelist(): void
     {
         $settings = $this->getServiceLocator()->get('Omeka\Settings');
@@ -939,9 +954,22 @@ class Module extends AbstractModule
                     ['dir' => 'files/iiif']
                 ));
             } else {
-                $messenger->addSuccess(new PsrMessage(
-                    'Manifest cache is enabled.' // @translate
-                ));
+                // Test actual write and read capability.
+                $testFile = $cachePath . '/.test_cache_' . time();
+                $testData = '{"test":true}';
+                $writeOk = file_put_contents($testFile, $testData) !== false;
+                $readOk = $writeOk && file_get_contents($testFile) === $testData;
+                @unlink($testFile);
+
+                if ($writeOk && $readOk) {
+                    $messenger->addSuccess(new PsrMessage(
+                        'Manifest cache is enabled and working.' // @translate
+                    ));
+                } else {
+                    $messenger->addError(new PsrMessage(
+                        'Manifest cache is enabled but write/read test failed. Check directory permissions and filesystem available space.' // @translate
+                    ));
+                }
             }
         }
     }
