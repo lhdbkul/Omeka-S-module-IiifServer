@@ -45,6 +45,7 @@ use Omeka\Settings\Settings;
  */
 class IiifManifest2 extends AbstractHelper
 {
+    use TraitDefaultLogoUrl;
     use TraitDescriptiveRights;
     use TraitStructuralStructures;
 
@@ -253,7 +254,7 @@ class IiifManifest2 extends AbstractHelper
             $manifest['license'] = $license;
         }
 
-        $logo = $this->setting->__invoke('iiifserver_manifest_logo_default');
+        $logo = $this->defaultLogoUrl();
         if ($logo) {
             $manifest['logo'] = ['@id' => $logo];
         }

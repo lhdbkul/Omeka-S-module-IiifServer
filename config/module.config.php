@@ -580,6 +580,7 @@ return [
             'iiifserver_manifest_canvas_label' => 'template',
             'iiifserver_manifest_canvas_label_property' => '',
             'iiifserver_manifest_logo_default' => '',
+            'iiifserver_manifest_logo_default_asset' => null,
             'iiifserver_manifest_html_descriptive' => true,
             'iiifserver_manifest_properties_collection_whitelist' => [],
             'iiifserver_manifest_properties_item_whitelist' => [],

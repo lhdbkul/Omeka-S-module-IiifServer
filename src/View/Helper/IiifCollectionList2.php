@@ -38,6 +38,7 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class IiifCollectionList2 extends AbstractHelper
 {
+    use TraitDefaultLogoUrl;
     use TraitDescriptiveRights;
 
     /**
@@ -104,7 +105,7 @@ class IiifCollectionList2 extends AbstractHelper
         $attribution = $this->settings->get('iiifserver_manifest_attribution_default');
         $manifest['attribution'] = $attribution;
 
-        $manifest['logo'] = $this->settings->get('iiifserver_manifest_logo_default');
+        $manifest['logo'] = $this->defaultLogoUrl();
 
         /*
         // Omeka api is a service, but not referenced in https://iiif.io/api/annex/services.

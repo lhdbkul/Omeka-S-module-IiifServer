@@ -46,21 +46,40 @@ trait TraitLinkingLogo
      */
     public function logo(): array
     {
-        $url = $this->settings->get('iiifserver_manifest_logo_default');
+        $url = null;
+        $format = null;
+
+        $assetId = $this->settings->get('iiifserver_manifest_logo_default_asset');
+        if ($assetId) {
+            try {
+                $asset = $this->api->read('assets', ['id' => $assetId])->getContent();
+                $url = $asset->assetUrl();
+                $format = $asset->mediaType();
+            } catch (\Throwable $e) {
+                $url = null;
+            }
+        }
+
+        if (!$url) {
+            $url = $this->settings->get('iiifserver_manifest_logo_default');
+        }
         if (!$url) {
             return [];
         }
 
-        // TODO Improve check of media type of the logo.
-        $format = strtolower(pathinfo($url, PATHINFO_EXTENSION));
-        $mediaTypes = [
-            'jpg' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'webp' => 'image/webp',
-            'gif' => 'image/gif',
-            'svg' => 'image/svg+xml',
-        ];
+        if (!$format) {
+            // TODO Improve check of media type of the logo.
+            $mediaTypes = [
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png' => 'image/png',
+                'webp' => 'image/webp',
+                'gif' => 'image/gif',
+                'svg' => 'image/svg+xml',
+            ];
+            $ext = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?: $url, PATHINFO_EXTENSION));
+            $format = $mediaTypes[$ext] ?? null;
+        }
 
         try {
             $size = $this->mediaDimension->__invoke($url);
@@ -72,15 +91,12 @@ trait TraitLinkingLogo
             return [];
         }
 
-        $output = [
+        return [[
             'id' => $url,
             'type' => 'Image',
-            'format' => @$mediaTypes[$format],
+            'format' => $format,
             'height' => $size['height'],
             'width' => $size['width'],
-        ];
-        return [
-            $output,
-        ];
+        ]];
     }
 }

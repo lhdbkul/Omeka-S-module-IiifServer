@@ -40,6 +40,7 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class IiifCollection2 extends AbstractHelper
 {
+    use TraitDefaultLogoUrl;
     use TraitDescriptiveRights;
 
     /**
@@ -138,7 +139,7 @@ class IiifCollection2 extends AbstractHelper
         }
         $manifest['attribution'] = $attribution;
 
-        $manifest['logo'] = $this->settings->get('iiifserver_manifest_logo_default');
+        $manifest['logo'] = $this->defaultLogoUrl();
 
         // TODO Use resource thumbnail (> Omeka 1.3).
         // $manifest['thumbnail'] = $thumbnail;

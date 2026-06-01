@@ -999,11 +999,23 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_logo_default_asset',
+                'type' => OmekaElement\Asset::class,
+                'options' => [
+                    'element_group' => 'metadata',
+                    'label' => 'Logo of the institution (asset)', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_logo_default_asset',
+                ],
+            ])
+
+            ->add([
                 'name' => 'iiifserver_manifest_logo_default',
                 'type' => Element\Url::class,
                 'options' => [
                     'element_group' => 'metadata',
-                    'label' => 'Logo of the institution', // @translate
+                    'label' => 'Logo of the institution (url, when asset is not set above)', // @translate
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_manifest_logo_default',
