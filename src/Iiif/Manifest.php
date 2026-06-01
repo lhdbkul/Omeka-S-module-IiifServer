@@ -224,7 +224,56 @@ class Manifest extends AbstractResourceType
                 $renderings[] = $rendering;
             }
         }
+
+        $zipRendering = $this->renderingZipDownload();
+        if ($zipRendering) {
+            $renderings[] = $zipRendering;
+        }
+
         return $renderings;
+    }
+
+    /**
+     * Build a manifest-level rendering entry pointing to the ZipDownload
+     * endpoint so viewers can offer a "download all as zip" link.
+     */
+    protected function renderingZipDownload(): ?array
+    {
+        if (!$this->settings->get('iiifserver_manifest_rendering_zip')) {
+            return null;
+        }
+        if (!$this->defaultSite) {
+            return null;
+        }
+        $viewHelpers = $this->services->get('ViewHelperManager');
+        if (!$viewHelpers->has('downloadZip')) {
+            return null;
+        }
+        $enabled = (bool) $this->siteSettings->get('zipdownload_enabled', false, $this->defaultSite->id());
+        if (!$enabled) {
+            return null;
+        }
+        $resourceName = $this->resource->resourceName();
+        if (!in_array($resourceName, ['items', 'media'])) {
+            return null;
+        }
+        $url = $this->urlHelper->__invoke(
+            'site/zip-download',
+            [
+                'site-slug' => $this->defaultSite->slug(),
+                'resource-type' => $resourceName === 'media' ? 'media' : 'item',
+                'resource-id' => $this->resource->id(),
+            ],
+            ['query' => ['content' => 'all', 'type' => 'original'], 'force_canonical' => true]
+        );
+        return [
+            'id' => $url,
+            'type' => 'Dataset',
+            'format' => 'application/zip',
+            'label' => ['none' => [
+                $this->translator->translate('Download all files as zip'), // @translate
+            ]],
+        ];
     }
 
     /**

@@ -764,6 +764,19 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_rendering_zip',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'tab' => 'metadata',
+                    'label' => 'Add a "rendering" link to download all files as zip (module ZipDownload)', // @translate
+                    'info' => 'Requires module ZipDownload enabled on the site. Adds a manifest-level rendering link pointing to the zip download endpoint.', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_rendering_zip',
+                ],
+            ])
+
+            ->add([
                 'name' => 'iiifserver_manifest_start_property',
                 'type' => OmekaElement\PropertySelect::class,
                 'options' => [

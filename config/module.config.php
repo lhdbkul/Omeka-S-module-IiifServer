@@ -568,6 +568,7 @@ return [
             'iiifserver_manifest_seealso_property' => '',
             'iiifserver_manifest_rendering_skip' => false,
             'iiifserver_manifest_rendering_media_types' => [],
+            'iiifserver_manifest_rendering_zip' => false,
             'iiifserver_manifest_start_property' => '',
             'iiifserver_manifest_start_primary_media' => false,
             'iiifserver_manifest_viewing_direction_property' => '',
