@@ -18,6 +18,7 @@ class IiifManifestLink extends AbstractHelper
      * Managed options:
      * - version
      * - template
+     * - dialog (array of: copy_on_click, drag_icon, copy_button, what_is_iiif)
      */
     public function __invoke(AbstractResourceEntityRepresentation $resource, array $options = []): string
     {
@@ -29,10 +30,31 @@ class IiifManifestLink extends AbstractHelper
             $options['version'] = (string) $options['version'] === '2' ? '2' : '3';
         }
 
+        if (!isset($options['dialog'])) {
+            $isSite = $view->status()->isSiteRequest();
+            $settingPlugin = $isSite ? $view->plugin('siteSetting') : $view->plugin('setting');
+            $options['dialog'] = $settingPlugin('iiifserver_manifest_link_dialog', ['copy_on_click', 'drag_icon', 'what_is_iiif']);
+        }
+        $options['dialog'] = array_values(array_intersect(
+            (array) $options['dialog'],
+            ['button_label', 'copy_on_click', 'drag_icon', 'copy_button', 'what_is_iiif']
+        ));
+
+        // The button always points at the IIIF manifest of the rendered
+        // resource (item, item set, digital object). The manifest endpoint
+        // already aggregates every IIIF source attached to the resource —
+        // native medias, digital objects, external links — so there is nothing
+        // to dispatch from the helper.
+        $urlIiif = (string) $view->plugin('iiifUrl')($resource, '', $options['version']);
+        if ($urlIiif === '') {
+            return '';
+        }
+
         $vars = [
             'resource' => $resource,
             'version' => $options['version'],
             'options' => $options,
+            'urlIiif' => $urlIiif,
         ];
 
         $assetUrl = $view->plugin('assetUrl');

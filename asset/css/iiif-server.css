@@ -5,16 +5,107 @@
     display: inline-block;
     width: 45px;
     height: 45px;
-    padding: unset;
-    margin: unset;
-    border: unset;
-    background: white url(../img/iiif.png) center / contain no-repeat;
-    -webkit-filter: grayscale(1);
-    filter: grayscale(1);
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: white;
+    text-decoration: none;
+    cursor: grab;
 }
 
-.iiif-copy:hover {
+.iiif-copy.iiif-copy-with-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    width: auto;
+    height: auto;
+    padding: 0.3em 0.7em;
+}
+
+.iiif-copy img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    -webkit-user-drag: element;
+    -webkit-filter: grayscale(1);
+    filter: grayscale(1);
+    pointer-events: none;
+}
+
+.iiif-copy.iiif-copy-with-label img {
+    width: 1.5em;
+    height: 1.5em;
+}
+
+.iiif-copy-label {
+    pointer-events: none;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.iiif-copy:hover img {
     -webkit-filter: grayscale(0);
     filter: none;
-    background-color: #dedede;
+}
+
+.iiif-copy:active {
+    cursor: grabbing;
+}
+
+.iiif-share {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.iiif-share-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.iiif-share-section p {
+    margin: 0;
+}
+
+.iiif-share-icon {
+    display: inline-block;
+    cursor: grab;
+}
+
+.iiif-share-icon:active {
+    cursor: grabbing;
+}
+
+.iiif-share-icon img {
+    width: 60px;
+    height: auto;
+    display: block;
+}
+
+.iiif-share-info {
+    font-size: 0.85em;
+}
+
+.iiif-share-copy {
+    align-self: center;
+}
+
+.iiif-share-copied {
+    width: 100%;
+    text-align: center;
+    padding: 0.5em;
+    background: #e8f5e9;
+    color: #1b5e20;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.iiif-share-info-row {
+    width: 100%;
+    text-align: center;
+    margin-top: 0.5rem;
 }

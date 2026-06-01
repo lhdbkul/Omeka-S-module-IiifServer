@@ -641,6 +641,12 @@ return [
             ],
         ],
         'site_settings' => [
+            'iiifserver_manifest_link_dialog' => [
+                'button_label',
+                'copy_on_click',
+                'drag_icon',
+                'what_is_iiif',
+            ],
             'iiifserver_player' => 'openseadragon',
             'iiifserver_player_osd_sidebar' => 'bottom',
             'iiifserver_player_inline_height' => '600px',

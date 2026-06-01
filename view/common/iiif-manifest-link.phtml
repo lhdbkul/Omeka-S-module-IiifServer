@@ -4,24 +4,50 @@
  * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource
  * @var string $version 2 or 3
  * @var array $options
+ * @var string $urlIiif Resolved by IiifManifestLink::__invoke()
  */
 
 $plugins = $this->getHelperPluginManager();
 $translate = $plugins->get('translate');
 $escapeAttr = $plugins->get('escapeHtmlAttr');
+$assetUrl = $plugins->get('assetUrl');
 
-$medias = $resource->media();
-if (count($medias)) {
-    $iiifUrl = $plugins->get('iiifUrl');
-    $urlIiif = $iiifUrl($resource, '', $version);
-} else {
-    $setting = $plugins->get('setting');
-    $manifestProperty = $setting('iiifserver_manifest_external_property');
-    if (!$manifestProperty) return;
-    $urlIiif = $resource->value($manifestProperty);
-    if (!$urlIiif) return;
-}
+$dialog = $options['dialog'] ?? ['button_label', 'copy_on_click', 'drag_icon', 'what_is_iiif'];
+$flags = [
+    'button_label' => (string) in_array('button_label', $dialog, true),
+    'copy_on_click' => (string) in_array('copy_on_click', $dialog, true),
+    'drag_icon' => (string) in_array('drag_icon', $dialog, true),
+    'copy_button' => (string) in_array('copy_button', $dialog, true),
+    'what_is_iiif' => (string) in_array('what_is_iiif', $dialog, true),
+];
 
+$iiifIcon = $assetUrl('img/iiif.png', 'IiifServer');
+$buttonClass = 'button iiif-copy' . ($flags['button_label'] ? ' iiif-copy-with-label' : '');
+
+// Drag-and-drop payload: the IIIF "drag-and-drop" convention expects the
+// dropped uri to carry the manifest as a "manifest" query parameter, so any
+// viewer (Mirador, Universal Viewer…) can extract it. Copy-paste keeps the bare
+// manifest url (data-iiif-url).
+$urlDrag = $urlIiif . '?manifest=' . $urlIiif;
+
+$dataAttrs = sprintf(
+    'data-iiif-url="%s" data-iiif-drag-url="%s" data-iiif-icon="%s" data-flag-copy-on-click="%s" data-flag-drag-icon="%s" data-flag-copy-button="%s" data-flag-what-is-iiif="%s" data-text-copied="%s" data-text-failed="%s" data-text-share="%s" data-text-drag="%s" data-text-or="%s" data-text-copy-paste="%s" data-text-copy="%s" data-text-close="%s" data-text-what-is-iiif="%s"',
+    $escapeAttr($urlIiif),
+    $escapeAttr($urlDrag),
+    $escapeAttr($iiifIcon),
+    $flags['copy_on_click'],
+    $flags['drag_icon'],
+    $flags['copy_button'],
+    $flags['what_is_iiif'],
+    $escapeAttr($translate('IIIF manifest url copied in clipboard!')),
+    $escapeAttr($translate('Unable to copy url in clipboard!')),
+    $escapeAttr($translate('Share IIIF manifest')),
+    $escapeAttr($translate('Drag & drop the IIIF icon to add this resource to any IIIF viewer.')),
+    $escapeAttr($translate('or')),
+    $escapeAttr($translate('Copy & paste the manifest url into any IIIF viewer.')),
+    $escapeAttr($translate('Copy')),
+    $escapeAttr($translate('Close')),
+    $escapeAttr($translate('What is IIIF?'))
+);
 ?>
-
-<button class="button iiif-copy" type="button" title="<?= $escapeAttr($translate('Copy IIIF manifest url in clipboard to use in any IIIF viewer.')) ?>" data-iiif-url="<?= $escapeAttr($urlIiif) ?>" data-text-copied="<?= $escapeAttr($translate('IIIF manifest url copied in clipboard!')) ?>" data-text-failed="<?= $translate('Unable to copy url in clipboard!') ?>"></button>
+<button class="<?= $escapeAttr($buttonClass) ?>" type="button" draggable="true" aria-haspopup="dialog" aria-label="<?= $escapeAttr($translate('Share IIIF manifest')) ?>" title="<?= $escapeAttr($translate('Drag & drop this IIIF icon, or click to copy-paste the IIIF manifest')) ?>" <?= $dataAttrs ?>><img src="<?= $escapeAttr($iiifIcon) ?>" alt="" aria-hidden="true" draggable="false" /><?= $flags['button_label'] ? '<span class="iiif-copy-label">' . $escapeAttr($translate('IIIF manifest')) . '</span>' : '' ?></button>

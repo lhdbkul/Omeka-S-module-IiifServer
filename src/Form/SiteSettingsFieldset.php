@@ -11,6 +11,7 @@ class SiteSettingsFieldset extends Fieldset
     protected $label = 'Players'; // @translate
 
     protected $elementGroups = [
+        'iiif_server' => 'IIIF Server', // @translate
         'player' => 'Players', // @translate
     ];
 
@@ -19,6 +20,29 @@ class SiteSettingsFieldset extends Fieldset
         $this
             ->setAttribute('id', 'iiif-server')
             ->setOption('element_groups', $this->elementGroups)
+
+            ->add([
+                'name' => 'iiifserver_manifest_link_dialog',
+                'type' => CommonElement\OptionalMultiCheckbox::class,
+                'options' => [
+                    'element_group' => 'iiif_server',
+                    'label' => 'Resource block IIIF manifest link button: Dialog content', // @translate
+                    'label_attributes' => [
+                        'style' => 'display: inline-block;',
+                    ],
+                    'info' => 'The button is always drag-and-droppable. On click, a share dialog is shown with the selected sections.', // @translate
+                    'value_options' => [
+                        'button_label' => 'Display the label "IIIF manifest" next to the icon in the button', // @translate
+                        'what_is_iiif' => 'Display "What is IIIF?" link', // @translate
+                        'copy_on_click' => 'Copy manifest url to clipboard on click and display the confirmation', // @translate
+                        'copy_button' => 'Display copy and paste message with a copy button', // @translate
+                        'drag_icon' => 'Display drag-and-drop message with IIIF icon', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_link_dialog',
+                ],
+            ])
 
             ->add([
                 'name' => 'iiifserver_player',
@@ -41,7 +65,6 @@ class SiteSettingsFieldset extends Fieldset
                     'id' => 'iiifserver_player',
                 ],
             ])
-
             ->add([
                 'name' => 'iiifserver_player_osd_sidebar',
                 'type' => CommonElement\OptionalRadio::class,
@@ -62,7 +85,6 @@ class SiteSettingsFieldset extends Fieldset
                     'id' => 'iiifserver_player_osd_sidebar',
                 ],
             ])
-
             ->add([
                 'name' => 'iiifserver_player_inline_height',
                 'type' => Element\Text::class,
@@ -76,7 +98,6 @@ class SiteSettingsFieldset extends Fieldset
                     'placeholder' => '600px',
                 ],
             ])
-
             ->add([
                 'name' => 'iiifserver_player_button_label',
                 'type' => Element\Text::class,
@@ -88,7 +109,6 @@ class SiteSettingsFieldset extends Fieldset
                     'id' => 'iiifserver_player_button_label',
                 ],
             ])
-
             ->add([
                 'name' => 'iiifserver_player_button_lazy',
                 'type' => Element\Checkbox::class,
