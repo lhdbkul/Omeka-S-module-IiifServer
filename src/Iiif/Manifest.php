@@ -313,7 +313,7 @@ class Manifest extends AbstractResourceType
                     'mediaInfos' => [
                         'indexes' => array_column(array_filter($this->mediaInfos), 'index', 'id'),
                         'seeAlso' => array_filter($this->mediaInfos, fn ($v) => ($v['key'] ?? null) === 'seeAlso'),
-                        'annotation' => array_filter($this->mediaInfos, fn ($v) => $v['relatedMediaOcr'] ?? false),
+                        'annotation' => [],
                         'extraFiles' => [
                             'alto' => $this->extraFiles['alto'][$this->resource->id()] ?? null,
                         ],

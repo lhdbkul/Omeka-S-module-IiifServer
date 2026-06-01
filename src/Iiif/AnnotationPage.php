@@ -36,7 +36,6 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class AnnotationPage extends AbstractResourceType
 {
-    use TraitXml;
 
     protected $type = 'AnnotationPage';
 
@@ -215,145 +214,11 @@ class AnnotationPage extends AbstractResourceType
      * with a linked media or use the same basename from the original source.
      *
      * @todo Merge with SeeAlso?
-     *
-     * @todo Factorize IiifAnnotationPageLine2, IiifManifest2 and AnnotationPage.
-     *
-     * @see \IiifServer\Iiif\AnnotationPage::initAnnotationPage()
-     * @see \IiifServer\View\Helper\IiifAnnotationPageLine2
-     * @see \IiifServer\View\Helper\IiifAnnotationPageLine3
-     * @see \IiifServer\View\Helper\IiifManifest2::otherContent()
-     * @see \IiifServer\View\Helper\IiifManifest2::relatedMediaOcr()
      */
     protected function initAnnotationPage(): self
     {
         if (empty($this->callingResource)) {
             return $this;
-        }
-
-        if (!empty($this->options['useExtraFiles'])) {
-            $filepath = $this->options['mediaInfos']['extraFiles']['alto'] ?? null;
-            $imageNumber = $this->options['mediaInfos']['indexes'][$this->resource->id()] ?? null;
-            if (!$filepath || !$imageNumber) {
-                return $this;
-            }
-        } else {
-            $relatedMedia = $this->iiifMediaRelatedOcr->__invoke($this->callingResource, null);
-            if (!$relatedMedia) {
-                return $this;
-            }
-            $filepath = null;
-            $imageNumber = null;
-        }
-
-        $callingResourceId = $this->callingResource->id();
-
-        // Here, the resource is a media.
-        $this->cache['id'] = $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
-            'type' => 'annotation-page',
-            'name' => $callingResourceId,
-            'subtype' => 'line',
-        ]);
-        $this->cache['type'] = $this->type;
-        $this->cache['label'] = ValueLanguage::output([
-            'none' => ['Text of the current page'], // @translate
-        ]);
-        $this->cache['items'] = [];
-        if ($this->isDereferenced) {
-            $this->initAnnotationPageLines($filepath, $imageNumber);
-        }
-
-        // When dereferenced (standalone request), clear cache if no items could
-        // be parsed. When referenced (in manifest), keep the id/type so the
-        // annotation page link is included.
-        if ($this->isDereferenced && !count($this->cache['items'])) {
-            $this->cache = [];
-        }
-
-        return $this;
-    }
-
-    /**
-     * Extract lines of an ocr.
-     *
-     * @see \IiifServer\View\Helper\IiifAnnotationPageLine2
-     */
-    protected function initAnnotationPageLines(?string $filepath = null, ?int $imageNumber = null): self
-    {
-        $this->cache['items'] = [];
-
-        $xml = $filepath
-            ? @simplexml_load_file($filepath)
-            : $this->loadXml($this->resource);
-        if (!$xml) {
-            return $this;
-        }
-
-        $namespaces = $xml->getDocNamespaces();
-        $altoNamespace = $namespaces['alto'] ?? $namespaces[''] ?? 'http://www.loc.gov/standards/alto/ns-v4#';
-        $xml->registerXPathNamespace('alto', $altoNamespace);
-
-        // Check the size of the page stored in alto and the real size of image.
-        // With common tools, it may be 300 / 108.
-        // It allows to fix refactored images and alto extracted from pdf via
-        // the module Extract Ocr.
-        [$widthImage, $heightImage] = array_values($this->mediaDimension->__invoke($this->callingResource));
-        $widthCoef = 1;
-        $heightCoef = 1;
-        if ($widthImage && $heightImage) {
-            $xpath = $imageNumber
-                ? "/alto:alto/alto:Layout/alto:Page[@PHYSICAL_IMG_NR='$imageNumber']/@WIDTH"
-                : '/alto:alto/alto:Layout/alto:Page/@WIDTH';
-            $widthLayout = $xml->xpath($xpath);
-            $widthLayout = (string) reset($widthLayout);
-            $xpath = $imageNumber
-                ? "/alto:alto/alto:Layout/alto:Page[@PHYSICAL_IMG_NR='$imageNumber']/@HEIGHT"
-                : '/alto:alto/alto:Layout/alto:Page/@HEIGHT';
-            $heightLayout = $xml->xpath($xpath);
-            $heightLayout = (string) reset($heightLayout);
-            if ($widthLayout && $heightLayout) {
-                $widthCoef = $widthImage / $widthLayout;
-                $heightCoef = $heightImage / $heightLayout;
-            }
-        }
-
-        $opts = [];
-        $opts['callingResource'] = $this->callingResource;
-        $opts['motivation'] = 'supplementing';
-        $opts['body'] = 'TextualBody';
-        $opts['target_name'] = $this->callingResource->id();
-
-        $index = 0;
-        $xpath = $imageNumber
-            ? "/alto:alto/alto:Layout/alto:Page[@PHYSICAL_IMG_NR='$imageNumber']//alto:TextLine"
-            : '/alto:alto/alto:Layout//alto:TextLine';
-
-        foreach ($xml->xpath($xpath) as $xmlTextLine) {
-            // TODO Add a coefficient when text is extracted from pdf, not images.
-            $attributes = $xmlTextLine->attributes();
-            $zone = [];
-            $zone['left'] = (int) (@$attributes->HPOS * $widthCoef);
-            $zone['top'] = (int) (@$attributes->VPOS * $heightCoef);
-            $zone['width'] = (int) (@$attributes->WIDTH * $widthCoef);
-            $zone['height'] = (int) (@$attributes->HEIGHT * $heightCoef);
-            $opts['target_fragment'] = 'xywh=' . implode(',', $zone);
-            $value = '';
-            /** @var \SimpleXMLElement $xmlString */
-            foreach ($xmlTextLine->children() as $xmlString) {
-                if ($xmlString->getName() === 'String') {
-                    $attributes = $xmlString->attributes();
-                    $value .= (string) $attributes->CONTENT . ' ';
-                }
-            }
-            $opts['value'] = trim($value);
-            if (!strlen($opts['value'])) {
-                continue;
-            }
-            $opts['index'] = ++$index;
-            $item = new Annotation();
-            $item
-                ->setOptions($opts)
-                ->setResource($this->resource);
-            $this->cache['items'][] = $item;
         }
 
         return $this;

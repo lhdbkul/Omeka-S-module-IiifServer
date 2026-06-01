@@ -155,7 +155,6 @@ trait TraitMediaInfo
             $mediaId = $media->id();
             $mediaIds[] = $mediaId;
             $this->mediaInfos[$mediaId] = null;
-            $relatedMediaOcr = $this->iiifMediaRelatedOcr->__invoke($media, null);
             $contentResource = new ContentResource();
             $contentResource->setResource($media);
             if ($contentResource->hasIdAndType()) {
@@ -165,14 +164,12 @@ trait TraitMediaInfo
                         'id' => $mediaId,
                         'resource' => $media,
                         'content' => $contentResource,
-                        'relatedMediaOcr' => $relatedMediaOcr ? $relatedMediaOcr->id() : null,
                     ];
                 } else {
                     $iiifTypes['other'][$mediaId] = [
                         'id' => $mediaId,
                         'resource' => $media,
                         'content' => $contentResource,
-                        'relatedMediaOcr' => $relatedMediaOcr ? $relatedMediaOcr->id() : null,
                     ];
                 }
             } else {
@@ -180,7 +177,6 @@ trait TraitMediaInfo
                     'id' => $mediaId,
                     'resource' => $media,
                     'content' => $contentResource,
-                    'relatedMediaOcr' => $relatedMediaOcr ? $relatedMediaOcr->id() : null,
                 ];
             }
         }
@@ -219,14 +215,12 @@ trait TraitMediaInfo
                         'id' => $doId,
                         'resource' => $do,
                         'content' => $contentResource,
-                        'relatedMediaOcr' => null,
                     ];
                 } else {
                     $iiifTypes['invalid'][$doId] = [
                         'id' => $doId,
                         'resource' => $do,
                         'content' => $contentResource,
-                        'relatedMediaOcr' => null,
                     ];
                 }
             }
@@ -380,7 +374,6 @@ trait TraitMediaInfo
     {
         $mediaId = $media->id();
 
-        $relatedMediaOcr = $this->iiifMediaRelatedOcr->__invoke($media, null);
         $contentResource = new ContentResource();
         $contentResource->setResource($media);
         if ($contentResource->hasIdAndType()) {
@@ -389,7 +382,6 @@ trait TraitMediaInfo
             $this->mediaInfosSingle[$mediaId]['resource'] = $media;
             $this->mediaInfosSingle[$mediaId]['content'] = $contentResource;
             $this->mediaInfosSingle[$mediaId]['on'] = 'Canvas';
-            $this->mediaInfosSingle[$mediaId]['relatedMediaOcr'] = $relatedMediaOcr ? $relatedMediaOcr->id() : null;
             if (in_array($iiifType, ['Image', 'Video', 'Sound', 'Text', 'Model'])) {
                 $this->mediaInfosSingle[$mediaId]['key'] = 'annotation';
                 $this->mediaInfosSingle[$mediaId]['motivation'] = 'painting';

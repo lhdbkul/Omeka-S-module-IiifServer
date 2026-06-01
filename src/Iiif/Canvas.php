@@ -259,41 +259,32 @@ class Canvas extends AbstractResourceType
             return $this->cache['seeAlso'];
         }
 
+        // OCR seeAlso is now produced exclusively by the IiifSearch module;
+        // when it is not active the canvas exposes no OCR seeAlso. Non-OCR
+        // seeAlso sources would plug in here in the future.
         $this->cache['seeAlso'] = [];
-        if (self::isMediaLikeResource($this->resource)) {
-            // Add the associated media to the current media. Currently, only
-            // the xml alto is managed.
-            $opts = $this->options;
-            $opts['callingResource'] = $this->resource;
-            $opts['callingMotivation'] = 'seeAlso';
-            foreach ($this->options['mediaInfos']['seeAlso'] ?? [] as $mediaData) {
-                $seeAlso = new SeeAlso();
-                // TODO Options should be set first for now for init, done in setResource().
-                $seeAlso
-                    ->setOptions($opts)
-                    ->setResource($mediaData['content']->getResource());
-                // Useless check.
-                if ($seeAlso->id()) {
-                    $this->cache['seeAlso'][] = $seeAlso;
-                }
-            }
-            /*
-            // Here, the single alto file is useless, because this is a media.
-            // Anyway, the sub process skip it because there is no media.
-            if (empty($this->cache['seeAlso']) && !empty($this->options['mediaInfos']['extraFiles']['alto'])) {
-                // There is only one annotation with alto ocr.
-                // TODO Manage pdf2xml (and tsv!)
-                $opts['useExtraFiles'] = true;
-                $seeAlso = new SeeAlso();
-                // TODO Options should be set first for now for init, done in setResource().
-                $seeAlso
-                    ->setOptions($opts)
-                    ->setResource($this->resource);
-                if ($seeAlso->id()) {
-                    $this->cache['seeAlso'][] = $seeAlso;
-                }
-            }
-            */
+        if (!self::isMediaLikeResource($this->resource)
+            || !$this->iiifSearchAnnotationUrl
+            || !$this->iiifSearchAnnotationUrl->isActive()
+        ) {
+            return $this->cache['seeAlso'];
+        }
+        $item = $this->resource->item();
+        if (!$this->iiifSearchAnnotationUrl->hasOcrSource($item)) {
+            return $this->cache['seeAlso'];
+        }
+        $canvasIndex = (int) ($this->options['index'] ?? 1);
+        $altoUrl = $this->iiifSearchAnnotationUrl->altoUrl(
+            $item,
+            max(0, $canvasIndex - 1)
+        );
+        if ($altoUrl) {
+            $this->cache['seeAlso'][] = [
+                'id' => $altoUrl,
+                'type' => 'Dataset',
+                'format' => 'application/alto+xml',
+                'profile' => 'http://www.loc.gov/standards/alto/',
+            ];
         }
         return $this->cache['seeAlso'];
     }
@@ -361,37 +352,32 @@ class Canvas extends AbstractResourceType
             return $this->cache['annotations'];
         }
 
+        // OCR annotations are now produced exclusively by the IiifSearch
+        // module; when it is not active, the canvas exposes no inline OCR
+        // annotations. Other annotation sources (Annotate module, etc.) would
+        // plug in here in the future.
         $this->cache['annotations'] = [];
-        if (self::isMediaLikeResource($this->resource)) {
-            $opts = $this->options;
-            $opts['callingResource'] = $this->resource;
-            $opts['callingMotivation'] = 'annotation';
-            // Currently, only alto ocr can be added.
-            // TODO Clarify process: currently, use only one
-            foreach ($this->options['mediaInfos']['annotation'] ?? [] as $mediaData) {
-                $annotation = new AnnotationPage();
-                // TODO Options should be set first for now for init, done in setResource().
-                $annotation
-                    ->setOptions($opts)
-                    ->setResource($mediaData['content']->getResource());
-                if ($annotation->id()) {
-                    $this->cache['annotations'][] = $annotation;
-                }
-            }
-            if (empty($this->cache['annotations']) && !empty($this->options['mediaInfos']['extraFiles']['alto'])) {
-                // There is only one annotation with alto ocr.
-                // TODO Manage pdf2xml (and tsv!)
-                $annotation = new AnnotationPage();
-                $opts['useExtraFiles'] = true;
-                // This is not a file, so it is dereferenced.
-                $opts['isDereferenced'] = true;
-                $annotation
-                    ->setOptions($opts)
-                    ->setResource($this->resource);
-                if ($annotation->id()) {
-                    $this->cache['annotations'][] = $annotation;
-                }
-            }
+        if (!self::isMediaLikeResource($this->resource)
+            || !$this->iiifSearchAnnotationUrl
+            || !$this->iiifSearchAnnotationUrl->isActive()
+        ) {
+            return $this->cache['annotations'];
+        }
+        $item = $this->resource->item();
+        if (!$this->iiifSearchAnnotationUrl->hasOcrSource($item)) {
+            return $this->cache['annotations'];
+        }
+        $canvasIndex = (int) ($this->options['index'] ?? 1);
+        $url = $this->iiifSearchAnnotationUrl->__invoke(
+            $item,
+            max(0, $canvasIndex - 1),
+            3
+        );
+        if ($url) {
+            $this->cache['annotations'][] = [
+                'id' => $url,
+                'type' => 'AnnotationPage',
+            ];
         }
         return $this->cache['annotations'];
     }

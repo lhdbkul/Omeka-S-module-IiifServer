@@ -256,11 +256,11 @@ class PresentationController extends AbstractActionController
         $name = $this->params('name');
         if ($type === 'canvas' && $name) {
             return $this->canvasAction();
-        } elseif ($type === 'annotation-page' && $name && $this->params('subtype')) {
-            return $this->annotationPageLineAction();
         } elseif ($type === 'annotation-list' && $name) {
             return $this->annotationListAction();
         }
+        // The annotation-page (OCR) route used to live here; OCR is now served
+        // by the IiifSearch module.
         return $this->jsonError(new PsrMessage(
             'The type "{type}" is currently only managed as uri, not url', // @translate
             ['type' => $type]
@@ -331,45 +331,6 @@ class PresentationController extends AbstractActionController
         }
 
         return $this->iiifJsonLd($canvas, $version);
-    }
-
-    protected function annotationPageLineAction()
-    {
-        // Unlike canvas, the name is the main media id.
-
-        $name = $this->params('name');
-        if (!$name) {
-            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
-        }
-
-        $api = $this->api();
-
-        // When the id is a clean url identifier, the id is already extracted.
-        $id = $this->params('id');
-        try {
-            $api->read('items', ['id' => $id])->getContent();
-        } catch (\Omeka\Api\Exception\NotFoundException $e) {
-            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
-        }
-
-        try {
-            $media = $api->read('media', ['item' => $id, 'id' => $name])->getContent();
-        } catch (\Omeka\Api\Exception\NotFoundException $e) {
-            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
-        }
-
-        $viewHelpers = $this->viewHelpers();
-        $iiifAnnotationPageLine = $viewHelpers->get('iiifAnnotationPageLine');
-
-        $version = $this->requestedVersion();
-
-        try {
-            $annotationPageLine = $iiifAnnotationPageLine($media, null, $version);
-        } catch (\IiifServer\Iiif\Exception\RuntimeException $e) {
-            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
-        }
-
-        return $this->iiifJsonLd($annotationPageLine, $version);
     }
 
     /**
