@@ -80,6 +80,17 @@ class IiifInfo3 extends AbstractHelper
         $this->view->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
         // Exception may be thrown.
         $info->normalize();
+
+        // The underlying file is no longer serviceable when width/height cannot
+        // be resolved. The IIIF Image API recommends 404/410 over a degraded
+        // info.json.
+        if (!$info->width() || !$info->height()) {
+            throw new \IiifServer\Iiif\Exception\NotFoundException(sprintf(
+                'Image media #%d has no resolvable dimensions; the original file is likely missing.',
+                $media->id()
+            ));
+        }
+
         return $info;
     }
 }

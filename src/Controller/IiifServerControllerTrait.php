@@ -161,6 +161,14 @@ trait IiifServerControllerTrait
         $iiifInfo = $this->viewHelpers()->get('iiifInfo');
         try {
             $info = $iiifInfo($resource, $this->requestedApiVersion);
+        } catch (\IiifServer\Iiif\Exception\NotFoundException $e) {
+            // The underlying file is no longer serviceable (missing on disk,
+            // broken external server, …). The IIIF Image API spec recommends
+            // 404/410 over a degraded info.json.
+            return $this->jsonError(
+                new PsrMessage($e->getMessage()),
+                \Laminas\Http\Response::STATUS_CODE_404
+            );
         } catch (\IiifServer\Iiif\Exception\RuntimeException $e) {
             return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
         }

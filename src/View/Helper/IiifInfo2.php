@@ -91,6 +91,16 @@ class IiifInfo2 extends AbstractHelper
             $width = $imageSize['width'];
             $height = $imageSize['height'];
 
+            // No dimensions resolvable means the original file is no longer
+            // serviceable (missing on disk, broken external server, …). The
+            // IIIF Image API recommends 404/410 over a degraded info.json.
+            if (!$width || !$height) {
+                throw new \IiifServer\Iiif\Exception\NotFoundException(sprintf(
+                    'Image media #%d has no resolvable dimensions; the original file is likely missing.',
+                    $media->id()
+                ));
+            }
+
             // Check if Image Server is available.
             $tiles = [];
             if ($this->hasModuleImageServer) {
