@@ -173,7 +173,7 @@ $triggerClass = $trigger === null ? 'button iiif-player-toggle' : 'iiif-player-t
     <?php endif; ?>
     <div class="iiif-player-overlay" role="dialog" aria-modal="true">
         <div class="iiif-player-stage"<?= $stageAttrsStr ?>><?= (!$lazy ? ($directHtml ?? '') : '') ?></div>
-        <button type="button" class="iiif-player-close" aria-label="<?= $escapeAttr($translate('Close')) ?>">×</button>
+        <button type="button" class="iiif-player-close" aria-label="<?= $escapeAttr($translate('Close')) ?>"><span class="iiif-player-close-label"><?= $escape($translate('Close')) ?></span><span class="iiif-player-close-icon" aria-hidden="true">×</span></button>
     </div>
 </div>
 

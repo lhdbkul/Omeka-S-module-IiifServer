@@ -205,14 +205,20 @@
     bottom: 10px;
     right: 10px;
     z-index: 10001;
-    width: 36px;
     height: 36px;
-    padding: 0;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid #fff;
-    border-radius: 50%;
+    border-radius: 18px;
     color: #fff;
-    font-size: 20px;
+    font-size: 14px;
     line-height: 1;
     cursor: pointer;
+}
+
+.iiif-player-button .iiif-player-close .iiif-player-close-icon {
+    font-size: 20px;
 }
