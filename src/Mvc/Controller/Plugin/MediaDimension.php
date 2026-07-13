@@ -4,7 +4,7 @@ namespace IiifServer\Mvc\Controller\Plugin;
 
 use Doctrine\DBAL\Connection;
 use finfo;
-use JamesHeinrich\GetID3\GetId3;
+use JamesHeinrich\GetID3\GetID3;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use Omeka\Api\Adapter\Manager as AdapterManager;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
@@ -386,7 +386,7 @@ class MediaDimension extends AbstractPlugin
             }
         }
 
-        $getId3 = new GetId3();
+        $getId3 = new GetID3();
         $data = $getId3->analyze($filepath);
         $data = $this->fixOggDuration($data);
         // In IIIF, the width and height should be positive integer and duration
