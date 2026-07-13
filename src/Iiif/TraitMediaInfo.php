@@ -347,7 +347,7 @@ trait TraitMediaInfo
     /**
      * Categorize extra files to prepare and include them only once in manifest.
      *
-     * For now only the alto files created by the module ExtractOcr are managed.
+     * For now only the alto files created by the module IiifSearch are managed.
      */
     private function prepareExtraFilesInfoList(): self
     {

@@ -101,6 +101,10 @@ class Module extends AbstractModule
      * @see https://iiif.io/api/presentation/3.0/
      * @see https://iiif.io/api/presentation/2.1/
      * @see https://iiif.io/api/image/3.0/
+     *
+     * Adapted and copied id:
+     * @see \IiifServer\Module::reencodeIdentifierSlashes()
+     * @see \IiifSearch\Module::reencodeIdentifierSlashes()
      */
     public function reencodeIdentifierSlashes(MvcEvent $event): void
     {
@@ -147,7 +151,7 @@ class Module extends AbstractModule
         // Known iiif presentation types and keywords that appear after the
         // identifier in the URL path. Used as anchors to detect where the
         // identifier portion ends.
-        // @see IiifServer config: route "uri" type constraint.
+        // See IiifServer config route "uri" type constraint.
         static $iiifKeywords = [
             'manifest' => true,
             'info.json' => true,
@@ -541,14 +545,13 @@ class Module extends AbstractModule
         $message = new PsrMessage(
             $message,
             [
-                'link' => sprintf('<a href="%s">',
-                    htmlspecialchars($urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
+                'link' => sprintf('<a href="%s">', htmlspecialchars($urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
                 ),
                 'job_id' => $job->getId(),
                 'link_end' => '</a>',
                 'link_log' => class_exists('Log\Module', false)
-                    ? sprintf('<a href="%1$s">', $urlPlugin->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
-                    : sprintf('<a href="%1$s" target="_blank">', $urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'action' => 'log', 'id' => $job->getId()])),
+                    ? sprintf('<a href="%1$s">', htmlspecialchars($urlPlugin->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]])))
+                    : sprintf('<a href="%1$s" target="_blank" rel="noopener noreferrer">', htmlspecialchars($urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'action' => 'log', 'id' => $job->getId()]))),
             ]
         );
         $message->setEscapeHtml(false);
