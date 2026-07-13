@@ -30,72 +30,6 @@ $entityManager = $services->get('Omeka\EntityManager');
 $defaultConfig = require dirname(__DIR__, 2) . '/config/module.config.php';
 $defaultSettings = $defaultConfig['iiifserver']['config'];
 
-/**
- * Dispatch a background job during module upgrade.
- *
- * During upgrade, module classes are not yet available to
- * the background process because the module state in the
- * database is still "needs_upgrade". This function
- * temporarily sets the module version and active flag so
- * the spawned process can bootstrap the module, waits for
- * the job to start, then restores the original state. The
- * Module Manager will set the real version and state once
- * upgrade() returns.
- */
-$dispatchJobDuringUpgrade = function (string $jobClass, array $args = [])
-    use ($services, $connection, $newVersion, $messenger): \Omeka\Entity\Job {
-    $moduleId = 'IiifServer';
-
-    $shortClass = substr(strrchr('\\' . $jobClass, '\\'), 1);
-    require_once dirname(__DIR__, 2) . '/src/Job/' . $shortClass . '.php';
-
-    // Read current state.
-    $moduleRow = $connection->executeQuery(
-        'SELECT is_active FROM module WHERE id = :id',
-        ['id' => $moduleId]
-    )->fetchAssociative();
-    $wasActive = (bool) ($moduleRow['is_active'] ?? false);
-
-    // Temporarily mark the module as active with the new
-    // version so the background process bootstraps it.
-    $connection->executeStatement(
-        'UPDATE module SET version = :version, is_active = 1 WHERE id = :id',
-        ['version' => $newVersion, 'id' => $moduleId]
-    );
-
-    $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
-    $job = $dispatcher->dispatch($jobClass, $args);
-
-    // Wait for the background process to bootstrap (read
-    // the module state) before restoring.
-    sleep(5);
-
-    // Check whether the job actually started.
-    $jobId = $job->getId();
-    $status = $connection->executeQuery(
-        'SELECT status FROM job WHERE id = :id',
-        ['id' => $jobId]
-    )->fetchOne();
-    if ($status === \Omeka\Entity\Job::STATUS_STARTING) {
-        $messenger->addWarning(new PsrMessage(
-            'The job #{job_id} is still starting after the sleep delay. It may need to be relaunched manually.', // @translate
-            ['job_id' => $jobId]
-        ));
-    }
-
-    // Restore is_active if the module was inactive. The
-    // version is not restored: the Module Manager overwrites
-    // it after upgrade() returns.
-    if (!$wasActive) {
-        $connection->executeStatement(
-            'UPDATE module SET is_active = 0 WHERE id = :id',
-            ['id' => $moduleId]
-        );
-    }
-
-    return $job;
-};
-
 if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActiveVersion('Common', '3.4.88')) {
     $message = new \Omeka\Stdlib\Message(
         $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
@@ -104,6 +38,20 @@ if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActi
     $messenger->addError($message);
     throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $translate('Missing requirement. Unable to upgrade.')); // @translate
 }
+
+/**
+ * Dispatch a background job during module upgrade.
+ *
+ * The module state handling (temporarily activating the module so the spawned
+ * process can bootstrap it, then restoring its state) is centralized in the
+ * Common service; only the module-specific job files to load are provided.
+ */
+$upgradeJobDispatch = $services->get('Common\UpgradeJobDispatch');
+$jobDir = dirname(__DIR__, 2) . '/src/Job/';
+$dispatchJobDuringUpgrade = fn (string $jobClass, array $args = []): \Omeka\Entity\Job =>
+    $upgradeJobDispatch($jobClass, $args, [
+        $jobDir . substr(strrchr('\\' . $jobClass, '\\'), 1) . '.php',
+    ]);
 
 $moduleManager = $services->get('Omeka\ModuleManager');
 $imageServerModule = $moduleManager->getModule('ImageServer');
@@ -418,13 +366,15 @@ if (version_compare($oldVersion, '3.6.18', '<')) {
 }
 
 if (version_compare($oldVersion, '3.6.19', '<')) {
+    // IiifServer is the parent module: never block its upgrade because of an
+    // older ImageServer. ImageServer enforces its own minimum IiifServer in its
+    // preInstall, which is the right direction for the dependency chain.
     if ($this->isModuleActive('ImageServer') && !$this->isModuleVersionAtLeast('ImageServer', '3.6.16')) {
-        $message = new \Omeka\Stdlib\Message(
-            $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
-            'ImageServer', '3.6.16'
+        $message = new PsrMessage(
+            'The module {module} should be upgraded to version {version} or later after this upgrade.', // @translate
+            ['module' => 'ImageServer', 'version' => '3.6.16']
         );
-        $messenger->addError($message);
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $translate('Missing requirement. Unable to upgrade.')); // @translate
+        $messenger->addWarning($message);
     }
 
     $settings->set('iiifserver_manifest_summary_property', $settings->get('iiifserver_manifest_description_property', 'template'));
@@ -551,4 +501,94 @@ if (version_compare($oldVersion, '3.6.32', '<')) {
         );
         $messenger->addWarning($message);
     }
+}
+
+if (version_compare($oldVersion, '3.6.33', '<')) {
+    /** @var \Omeka\Settings\SiteSettings $siteSettings */
+    $siteSettings = $services->get('Omeka\Settings\Site');
+    $defaultSiteSettings = $defaultConfig['iiifserver']['site_settings'] ?? [];
+    // Preserve historical look for existing sites: no inline label.
+    $upgradeDialog = ['copy_on_click', 'drag_icon', 'what_is_iiif'];
+
+    $sites = $api->search('sites')->getContent();
+    foreach ($sites as $site) {
+        $siteSettings->setTargetId($site->id());
+        if ($siteSettings->get('iiifserver_manifest_link_dialog', null) === null) {
+            $siteSettings->set('iiifserver_manifest_link_dialog', $upgradeDialog);
+        }
+    }
+
+    $message = new PsrMessage(
+        'A new per-site option was added to the button IIIF manifest link to allow drag-and-drop and to display a "What is IIIF?" link.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    // OCR is now produced exclusively by the IiifSearch module; IiifServer no
+    // longer pairs ALTO with images nor repairs OCR XML. Drop the obsolete
+    // settings from the table.
+    $settings->delete('iiifserver_xml_image_match');
+    $settings->delete('iiifserver_xml_fix_mode');
+
+    $message = new PsrMessage(
+        'All features related to ocr, text and alto were moved to the module Iiif Search. The module Iiif Search includes now automated processes to manage all the common cases: search, highlight, extraction with or without provided alto or pdf, extraction from images, tei and hocr, management of multi-pages or single pages files, etc.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    // The institution logo can now be chosen from the Omeka asset library in
+    // addition to the legacy url setting. The asset takes precedence when set.
+    if ($settings->get('iiifserver_manifest_logo_default_asset') === null) {
+        $settings->set('iiifserver_manifest_logo_default_asset', null);
+    }
+
+    $message = new PsrMessage(
+        'A new option allows to pick the institution logo from the Omeka asset library. It takes precedence over the legacy url setting when both are set.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    // The single multi-checkbox listing supported image api version/level pairs
+    // is replaced by one radio per api version, so each version has a single
+    // max compliance level (or "not supported"), which is the only meaningful
+    // choice.
+    // Installs that never saved the config form have no row for the legacy
+    // setting: it is resolved at read time from the module default. Use that
+    // same default here, otherwise the conversion would disable every version.
+    $supported = $settings->get('iiifserver_media_api_supported_versions');
+    if ($supported === null) {
+        $supported = ['2/2', '3/2'];
+    }
+    $levels = ['1' => '', '2' => '', '3' => ''];
+    foreach ((array) $supported as $versionLevel) {
+        $version = strtok((string) $versionLevel, '/');
+        $level = strtok('/');
+        if (isset($levels[$version]) && $level !== false) {
+            // Keep the highest selected level when several were checked.
+            $levels[$version] = max($levels[$version], $level);
+        }
+    }
+    foreach ($levels as $version => $level) {
+        $settings->set('iiifserver_media_api_supported_version_' . $version, $level);
+    }
+    $settings->delete('iiifserver_media_api_supported_versions');
+
+    $message = new PsrMessage(
+        'The supported image api versions are now set with one option per version, each defining its single max compliance level.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    // A version-less manifest request used to cache to "iiif/{id}.manifest.json"
+    // (empty version in the path), an orphan never rewritten by the manifest
+    // cache job. Now that version-less requests reuse the versioned cache,
+    // remove these stale orphans; they are regenerated on demand if needed.
+    $config = $services->get('Config');
+    $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+    $orphans = glob($basePath . '/iiif/*.manifest.json') ?: [];
+    foreach ($orphans as $orphan) {
+        @unlink($orphan);
+    }
+
+    $message = new PsrMessage(
+        'Removed {count} stale version-less manifest cache files.', // @translate
+        ['count' => count($orphans)]
+    );
+    $messenger->addSuccess($message);
 }
