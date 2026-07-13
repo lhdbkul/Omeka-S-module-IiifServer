@@ -312,7 +312,37 @@ in the specified element of a record. The viewer included on that record’s
 display page will use that manifest URL to retrieve images and metadata for the
 viewer.
 
+#### Sharing the property with DigitalObject inline rendering
+
+`iiifserver_manifest_external_property` and the DigitalObject module's
+`digitalobject_inline_properties` are commonly configured on the same RDF
+property (typically `dcterms:hasFormat`). The two are unambiguously
+discriminated by value type:
+
+- a **URI** value or a string passing FILTER_VALIDATE_URL on that property is
+  treated as an external manifest URL (IiifServer takes over);
+- a **value-resource** value pointing to a DigitalObject is treated as inline
+  media of the current item (DigitalObject takes over, the DO becomes a
+  canvas in the item's own manifest).
+
+Cross-references to non-DO resources (linking another item, for instance)
+are ignored by both pipelines: they are not external manifest URLs and not
+embeddable medias.
+
 ### Config options for manifest
+
+#### Logo of the institution
+
+Two settings are exposed in the config form:
+
+- **Logo of the institution (asset)**: pick an image from the Omeka asset
+  library. Recommended; uploaded once, reused everywhere.
+- **Logo of the institution (url)**: external url, used only when no asset is
+  selected.
+
+The asset takes precedence over the url. The media type is read from the asset
+itself (no extension-based guess); when only the url is set, the format is
+inferred from the file extension (`jpg`, `png`, `webp`, `gif`, `svg`).
 
 #### Incompatible data
 
@@ -838,6 +868,7 @@ TODO / Bugs
 - [ ] Create a plugin MediaData that will merge MediaDimension, ImageSize, and allows to get media type.
 - [ ] Clarify option for home page with "default site", that may not be a site of the item.
 - [ ] Podcast on iiif v2.
+- [ ] Add iiif physical dimensions service (`http://iiif.io/api/annex/services/physdim`) with dcterms:extent or EXIF/XMP resolution. Required for viewer physical ruler.
 
 See module [Image Server].
 
