@@ -150,6 +150,7 @@
                     a.type = 'button';
                     a.className = 'iiif-player-thumb';
                     a.title = t.title || '';
+                    a.setAttribute('aria-label', t.title || '');
                     a.innerHTML = '<img src="' + t.thumb + '" alt="">';
                     a.addEventListener('click', function () { goTo(i); });
                     if (i === 0) a.classList.add('active');
@@ -245,11 +246,15 @@
             document.body.style.overflow = 'hidden';
             // Module viewers init hidden: force relayout.
             window.dispatchEvent(new Event('resize'));
+            // a11y: move focus into the dialog (do not keep it on the toggle).
+            closeBtn.focus();
         }
         function close() {
             overlay.style.display = 'none';
             btn.setAttribute('aria-expanded', 'false');
             document.body.style.overflow = '';
+            // a11y: return focus to the toggle (e.g. after Escape).
+            btn.focus();
         }
 
         btn.addEventListener('click', open);
