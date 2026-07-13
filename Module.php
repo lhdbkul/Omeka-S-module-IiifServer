@@ -30,6 +30,12 @@
 
 namespace IiifServer;
 
+// Load the module dependencies when installed as a zip.
+// With composer, libraries are stored in omeka vendor/ and the module has none.
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 if (!class_exists('Common\TraitModule', false)) {
     require_once file_exists(dirname(__DIR__) . '/Common/src/TraitModule.php')
         ? dirname(__DIR__) . '/Common/src/TraitModule.php'
@@ -53,13 +59,6 @@ class Module extends AbstractModule
     use TraitModule;
 
     const NAMESPACE = __NAMESPACE__;
-
-    public function init(ModuleManager $moduleManager): void
-    {
-        // The autoload doesn’t work with GetId3.
-        // @see \IiifServer\Service\ControllerPlugin\MediaDimensionFactory
-        require_once __DIR__ . '/vendor/autoload.php';
-    }
 
     public function onBootstrap(MvcEvent $event): void
     {

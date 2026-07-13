@@ -2,11 +2,6 @@
 
 namespace IiifServer\Service\ControllerPlugin;
 
-// The autoload doesn’t work with GetId3.
-if (!class_exists('JamesHeinrich\GetID3\GetId3', false)) {
-    require_once dirname(__DIR__, 3) . '/vendor/james-heinrich/getid3/src/GetID3.php';
-}
-
 use IiifServer\Mvc\Controller\Plugin\MediaDimension;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use Psr\Container\ContainerInterface;
