@@ -574,7 +574,7 @@ return [
             'iiifserver_manifest_placeholder_canvas_default' => '',
             'iiifserver_manifest_behavior_property' => '',
             'iiifserver_manifest_behavior_default' => ['none'],
-            'iiifserver_manifest_canvas_label' => 'template',
+            'iiifserver_manifest_canvas_label' => 'position',
             'iiifserver_manifest_canvas_label_property' => '',
             'iiifserver_manifest_logo_default' => '',
             'iiifserver_manifest_logo_default_asset' => null,
@@ -600,8 +600,6 @@ return [
             'iiifserver_manifest_structures_property' => '',
             'iiifserver_manifest_structures_skip_flat' => false,
             // Various.
-            'iiifserver_xml_image_match' => 'order',
-            'iiifserver_xml_fix_mode' => 'no',
             'iiifserver_access_resource_skip' => false,
             'iiifserver_access_ocr_skip' => false,
             // Urls.
@@ -620,10 +618,9 @@ return [
             // This option is used by module Bulk Import and for a future improvement.
             'iiifserver_media_api_url' => '',
             'iiifserver_media_api_default_version' => '2',
-            'iiifserver_media_api_supported_versions' => [
-                '2/2',
-                '3/2',
-            ],
+            'iiifserver_media_api_supported_version_1' => '',
+            'iiifserver_media_api_supported_version_2' => '2',
+            'iiifserver_media_api_supported_version_3' => '2',
             // The version and the prefix should be set in module config routing for now.
             'iiifserver_media_api_version_append' => false,
             'iiifserver_media_api_prefix' => '',

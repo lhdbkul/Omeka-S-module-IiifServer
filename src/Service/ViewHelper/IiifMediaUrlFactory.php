@@ -13,6 +13,13 @@ class IiifMediaUrlFactory implements FactoryInterface
         $helpers = $services->get('ViewHelperManager');
         $settings = $services->get('Omeka\Settings');
         $urlHelper = $helpers->get('url');
+        $supportedVersions = [];
+        foreach (['1' => '', '2' => '2', '3' => '2'] as $version => $default) {
+            $level = $settings->get('iiifserver_media_api_supported_version_' . $version, $default);
+            if ($level !== '' && $level !== null) {
+                $supportedVersions[] = $version . '/' . $level;
+            }
+        }
         return new IiifMediaUrl(
             $urlHelper,
             $helpers->get('iiifCleanIdentifiers'),
@@ -20,7 +27,7 @@ class IiifMediaUrlFactory implements FactoryInterface
             $settings->get('iiifserver_media_api_url', ''),
             $settings->get('iiifserver_media_api_default_version', '2'),
             (bool) $settings->get('iiifserver_media_api_version_append', false),
-            $settings->get('iiifserver_media_api_supported_versions', ['2/2', '3/2']),
+            $supportedVersions,
             $settings->get('iiifserver_url_force_from', ''),
             $settings->get('iiifserver_url_force_to', ''),
             $settings->get('iiifserver_media_api_identifier', ''),

@@ -454,7 +454,7 @@ if (version_compare($oldVersion, '3.6.20', '<')) {
             ->andWhere('value.value IS NOT NULL')
             ->andWhere('value.value != ""')
             ->orderBy('value.id', 'asc');
-        $structures = $connection->executeQuery($qb)->fetchOne();
+        $structures = $connection->executeQuery($qb->getSQL())->fetchOne();
         if ($structures) {
             $job = $dispatchJobDuringUpgrade(\IiifServer\Job\UpgradeStructures::class);
             $message = new PsrMessage(

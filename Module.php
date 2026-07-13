@@ -328,9 +328,16 @@ class Module extends AbstractModule
 
     public function getConfigForm(PhpRenderer $renderer)
     {
+        $this->appendConfigApplyAsset($renderer);
+
         $services = $this->getServiceLocator();
         $plugins = $services->get('ControllerPluginManager');
         $messenger = $plugins->get('messenger');
+
+        // Preserve pending flash messages (e.g. the "Apply" success message):
+        // they are restored below, after the diagnostics are collected into the
+        // audit tab via the messenger as a temporary buffer.
+        $pending = $messenger->get();
 
         // Clear previous, run diagnostics, collect for audit tab.
         $messenger->clear();
@@ -349,6 +356,13 @@ class Module extends AbstractModule
         foreach ($diagExtra as $type => $msgs) {
             foreach ($msgs as $msg) {
                 $diagnostics[$type][] = $msg;
+            }
+        }
+
+        // Restore pending flash messages so they still display.
+        foreach ($pending as $type => $msgs) {
+            foreach ($msgs as $msg) {
+                $messenger->add($type, $msg);
             }
         }
 
@@ -388,76 +402,42 @@ class Module extends AbstractModule
             return null;
         }
 
-        $form = $formManager->get(\IiifServer\Form\ConfigForm::class);
-        $form->init();
-        $form->setData($data);
+        if ($this->invalidConfigForm) {
+            // Reuse the failed-submit form so its per-field error messages
+            // remain attached and render inline via formRow().
+            $form = $this->invalidConfigForm;
+        } else {
+            $form = $formManager->get(\IiifServer\Form\ConfigForm::class);
+            $form->init();
+            $form->setData($data);
+        }
         $form->prepare();
 
         $view = $renderer;
 
-        // Dispatch elements to tabs using element_groups.
-        // Fieldsets are rendered as sub-sections within their group.
-        $elementGroups = $form->getOption('element_groups') ?: [];
-        $tabs = array_fill_keys(array_keys($elementGroups), '');
-        $ungrouped = '';
+        // Diagnostics are shown in a dedicated first tab; the remaining tabs
+        // are derived declaratively from the form option "element_tabs" by the
+        // formTabs helper of module Common.
+        $tabsHelper = $view->getHelperPluginManager()->get('formTabs');
+        $tabs = $tabsHelper->tabsFromOption($form);
+        $tabs['audit']['content_before'] = $auditHtml;
 
-        foreach ($form as $element) {
-            if ($element instanceof \Laminas\Form\FieldsetInterface) {
-                $group = $element->getOption('element_group');
-                if ($group && isset($tabs[$group])) {
-                    $tabs[$group] .= $view->formCollection($element);
-                }
-                continue;
-            }
-            $group = $element->getOption('element_group');
-            if ($group && isset($tabs[$group])) {
-                $tabs[$group] .= $view->formRow($element);
-            } else {
-                $ungrouped .= $view->formRow($element);
-            }
-        }
-
-        // Prepend intro text to first tab.
+        // Intro note prepended to the first form tab, after the audit tab.
         $configNote = '<p>'
             . $translate('The module creates manifests with the properties from each resource (item set, item and media).') // @translate
             . ' ' . $translate('The properties below are used when some metadata are missing.') // @translate
             . ' ' . $translate('In all cases, empty properties are not set.') // @translate
             . '</p>';
-        $firstGroup = array_key_first($elementGroups);
-        if ($firstGroup) {
-            $tabs[$firstGroup] = $configNote . $ungrouped
-                . $tabs[$firstGroup];
+        $ids = array_keys($tabs);
+        $firstFormTab = $ids[1] ?? null;
+        if ($firstFormTab !== null) {
+            $tabs[$firstFormTab]['content_before'] = $configNote
+                . ($tabs[$firstFormTab]['content_before'] ?? '');
         }
 
-        // Build tab navigation and content.
-        $iiifModules = [
-            'IiifServer',
-            'ImageServer',
-            'IiifSearch',
-        ];
-        $moduleNav = $view->moduleConfigNav($iiifModules, 'IiifServer');
+        $moduleNav = $view->moduleConfigNav(['IiifServer', 'IiifSearch', 'ImageServer'], 'IiifServer');
 
-        $tabNav = '<li class="active"><a href="#iiifserver-audit">'
-            . $escape($translate('Audit')) . '</a></li>';
-        $tabContent = '<div id="iiifserver-audit" class="section active">'
-            . $auditHtml . '</div>';
-
-        foreach ($elementGroups as $groupName => $groupLabel) {
-            if (empty($tabs[$groupName])) {
-                continue;
-            }
-            $tabNav .= '<li><a href="#iiifserver-' . $groupName . '">'
-                . $escape($translate($groupLabel)) . '</a></li>';
-            $tabContent .= '<div id="iiifserver-' . $groupName
-                . '" class="section">'
-                . $tabs[$groupName] . '</div>';
-        }
-
-        return $moduleNav
-            . '<ul class="section-nav" style="list-style:none;padding:0;">'
-            . $tabNav
-            . '</ul>'
-            . $tabContent;
+        return $moduleNav . $view->formTabs($form, $tabs);
     }
 
     public function handleConfigForm(AbstractController $controller)
@@ -515,8 +495,15 @@ class Module extends AbstractModule
             $settings->set($key, $value);
         }
 
-        $this->normalizeMediaApiSettings($params);
+        // When the module ImageServer is installed, the media api fields are
+        // not part of this form (its own config form owns them). Skipping
+        // avoids normalizing from absent params, which would reset the image
+        // api settings and break every manifest.
+        if (!class_exists('ImageServer\Module', false)) {
+            $this->normalizeMediaApiSettings($params);
+        }
 
+        $this->redirectToConfigFormOnApply($controller);
         return true;
     }
 
@@ -790,17 +777,18 @@ class Module extends AbstractModule
         $services = $this->getServiceLocator();
         $settings = $services->get('Omeka\Settings');
 
-        // Check and normalize image api versions.
+        // Check and normalize image api versions. Each version has a single max
+        // compliance level, or an empty value when the version is not
+        // supported.
         $defaultVersion = (string) ($params['iiifserver_media_api_default_version'] ?? '0');
         $has = ['1' => null, '2' => null, '3' => null];
-        foreach ($params['iiifserver_media_api_supported_versions'] ?? [] as $supportedVersion) {
-            $service = strtok($supportedVersion, '/');
-            $level = strtok('/') ?: '0';
-            $has[$service] = isset($has[$service]) && $has[$service] > $level
-                ? $has[$service]
-                : $level;
+        foreach (array_keys($has) as $version) {
+            $level = (string) ($params['iiifserver_media_api_supported_version_' . $version] ?? '');
+            if ($level !== '') {
+                $has[$version] = $level;
+            }
         }
-        $has = array_filter($has);
+        $has = array_filter($has, fn ($level) => $level !== null);
         if ($defaultVersion && !isset($has[$defaultVersion])) {
             $has[$defaultVersion] = '0';
         }
@@ -810,7 +798,6 @@ class Module extends AbstractModule
             $supportedVersions[] = $service . '/' . $level;
         }
         $settings->set('iiifserver_media_api_default_version', $defaultVersion);
-        $settings->set('iiifserver_media_api_supported_versions', $supportedVersions);
 
         // Avoid to do the computation each time for manifest v2, that supports
         // only one service.

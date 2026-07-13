@@ -426,7 +426,13 @@ abstract class AbstractResourceType extends AbstractType
         $this->basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
         $this->baseUri = $config['file_store']['local']['base_uri'] ?: (rtrim($this->urlHelper->__invoke('top', [], ['force_canonical' => true]), '/') . '/files');
         $this->iiifImageApiVersion = $this->settings->get('iiifserver_media_api_default_version', '2');
-        $this->iiifImageApiSupportedVersions = (array) $this->settings->get('iiifserver_media_api_supported_versions', ['2/2', '3/2']);
+        $this->iiifImageApiSupportedVersions = [];
+        foreach (['1' => '', '2' => '2', '3' => '2'] as $version => $default) {
+            $level = $this->settings->get('iiifserver_media_api_supported_version_' . $version, $default);
+            if ($level !== '' && $level !== null) {
+                $this->iiifImageApiSupportedVersions[] = $version . '/' . $level;
+            }
+        }
 
         return $this;
     }
